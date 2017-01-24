@@ -16,7 +16,10 @@ from calibre.gui2.tweak_book.plugin import Tool
 from calibre.gui2.tweak_book import editor_name
 from calibre.gui2 import error_dialog, info_dialog
 from calibre.ebooks.oeb.polish.container import OEB_DOCS, OEB_STYLES, get_container
-from calibre.ebooks.oeb.polish.toc import get_toc, find_existing_ncx_toc, commit_toc
+try:
+    from calibre.ebooks.oeb.polish.toc import get_toc, find_existing_ncx_toc, commit_toc
+except:
+    from calibre.ebooks.oeb.polish.toc import get_toc, find_existing_toc, commit_toc
 
 '''
 TradSimpChinese
