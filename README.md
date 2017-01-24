@@ -22,11 +22,11 @@ Currently, the Chinese language is written with two different standardized chara
 
 **Notes**<br/>
 
-1) This plugin incorporates python code from opencc-python (https://github.com/yichen0831/opencc-python). That code was licensed under Apache License 2.0
+1) This plugin incorporates python code from opencc-python (https://github.com/yichen0831/opencc-python). License: Apache License 2.0
 
-2) This plugin uses data from OpenCC (https://github.com/BYVoid/OpenCC)
+2) This plugin uses data from OpenCC (https://github.com/BYVoid/OpenCC). License: Apache License 2.0
 
-2) The plugin also uses python code from DiapDealer's Editing Toolbag (https://www.mobileread.com/forums/sho...d.php?t=251365). That code was licensed under Apache License 2.0
+2) The plugin also uses python code from DiapDealer's Editing Toolbag (https://www.mobileread.com/forums/sho...d.php?t=251365). Licenese: GPL3
 
 
 Support Link
