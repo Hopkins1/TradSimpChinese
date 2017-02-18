@@ -1,4 +1,4 @@
-
+# -*- coding: utf-8 -*-
 from __future__ import (unicode_literals, division, absolute_import,
                         print_function)
 
@@ -41,6 +41,9 @@ class ConversionDialog(Dialog):
         Dialog.__init__(self, _('Chinese Conversion'), 'chinese_conversion_dialog', parent)
 
     def setup_ui(self):
+        self.quote_for_trad_target = _("Update quotes: ＂＂,＇＇ -> 「」,『』")
+        self.quote_for_simp_target = _("Update quotes: 「」,『』 -> ＂＂,＇＇")
+
         layout = QVBoxLayout(self)
         self.setLayout(layout)
 
@@ -93,6 +96,16 @@ class ConversionDialog(Dialog):
         style_group_box_layout.addWidget(self.use_target_phrases)
         self.use_target_phrases.stateChanged.connect(self.update_gui)
 
+        self.use_correct_quotes = QCheckBox("")
+        self.use_correct_quotes.setToolTip(_('Modify quotation marks in horizontal text to match region'))
+        style_group_box_layout.addWidget(self.use_correct_quotes)
+        self.use_correct_quotes.stateChanged.connect(self.update_gui)
+
+        self.use_smart_quotes = QCheckBox("""Use curved 'Smart" quotes""")
+        self.use_smart_quotes.setToolTip(_('Use smart curved half-width quotes rather than straight full-width quotes'))
+        style_group_box_layout.addWidget(self.use_smart_quotes)
+        self.use_smart_quotes.stateChanged.connect(self.update_gui)
+
         source_group=QButtonGroup(self)
         self.file_source_button = QRadioButton(_('Selected File Only'))
         self.book_source_button = QRadioButton(_('Entire eBook'))
@@ -125,6 +138,8 @@ class ConversionDialog(Dialog):
             self.file_source_button.setChecked(False)
             self.book_source_button.setChecked(True)
         self.use_target_phrases.setChecked(self.prefs['use_target_phrases'])
+        self.use_correct_quotes.setChecked(self.prefs['use_correct_quotes'])
+        self.use_smart_quotes.setChecked(self.prefs['use_smart_quotes'])
         self.update_gui()
 
     def update_gui(self):
@@ -133,20 +148,37 @@ class ConversionDialog(Dialog):
             #only mainland output locale for simplified output
             self.output_combo.setCurrentIndex(0)
             self.output_combo.setEnabled(False)
+            self.use_correct_quotes.setEnabled(True)
+            self.use_correct_quotes.setText(self.quote_for_simp_target)
+            if (self.use_correct_quotes.isChecked()):
+                self.use_smart_quotes.setEnabled(True)
+            else:
+                self.use_smart_quotes.setEnabled(False)
+            
         elif self.simp_to_trad_button.isChecked():
             #only mainland input locale for simplified input
             self.input_combo.setCurrentIndex(0)
             self.input_combo.setEnabled(False)
             self.output_combo.setEnabled(True)
+            self.use_correct_quotes.setEnabled(True)
+            self.use_correct_quotes.setText(self.quote_for_trad_target)
+            self.use_smart_quotes.setEnabled(False)
+            
         elif self.trad_to_trad_button.isChecked():
             #Trad->Trad
             #currently only mainland input locale for Trad->Trad
             self.input_combo.setCurrentIndex(0)
             self.input_combo.setEnabled(False)
             self.output_combo.setEnabled(True)
+            self.use_correct_quotes.setEnabled(False)
+            self.use_correct_quotes.setText(self.quote_for_trad_target)
+            self.use_smart_quotes.setEnabled(False)
         else:
             self.input_combo.setEnabled(True)
             self.output_combo.setEnabled(True)
+            self.use_correct_quotes.setEnabled(True)
+            self.use_correct_quotes.setText(self.quote_for_simp_target)
+            self.use_smart_quotes.setEnabled(False)
 
     def _ok_clicked(self):
         output_mode = 0        #trad -> simp
@@ -157,7 +189,8 @@ class ConversionDialog(Dialog):
 
         self.criteria = (
             self.file_source_button.isChecked(), output_mode, self.input_combo.currentIndex(),
-            self.output_combo.currentIndex(), self.use_target_phrases.isChecked())
+            self.output_combo.currentIndex(), self.use_target_phrases.isChecked(),
+            self.use_correct_quotes.isChecked(), self.use_smart_quotes.isChecked())
         self.savePrefs()
         self.accept()
 
@@ -175,6 +208,8 @@ class ConversionDialog(Dialog):
         plugin_prefs.defaults['trad_to_trad'] = False
         plugin_prefs.defaults['use_entire_book'] = False
         plugin_prefs.defaults['use_target_phrases'] = True
+        plugin_prefs.defaults['use_correct_quotes'] = True
+        plugin_prefs.defaults['use_smart_quotes'] = False
         return plugin_prefs
 
     def savePrefs(self):
@@ -186,5 +221,7 @@ class ConversionDialog(Dialog):
         self.prefs['trad_to_trad'] = self.trad_to_trad_button.isChecked()
         self.prefs['use_entire_book'] = self.book_source_button.isChecked()
         self.prefs['use_target_phrases'] = self.use_target_phrases.isChecked()
+        self.prefs['use_correct_quotes'] = self.use_correct_quotes.isChecked()
+        self.prefs['use_smart_quotes'] = self.use_smart_quotes.isChecked()
 
 

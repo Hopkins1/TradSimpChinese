@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import (unicode_literals, division, absolute_import,
                         print_function)
 
@@ -20,6 +21,7 @@ try:
     from calibre.ebooks.oeb.polish.toc import get_toc, find_existing_ncx_toc, commit_toc
 except:
     from calibre.ebooks.oeb.polish.toc import get_toc, find_existing_toc, commit_toc
+from calibre_plugins.chinese_text.resources.opencc_python.opencc import OpenCC
 
 '''
 TradSimpChinese
@@ -50,6 +52,17 @@ class TradSimpChinese(Tool):
     allowed_in_menu = True
     
     zh_re = re.compile('lang=\"zh-\w+\"|lang=\"zh\"', re.IGNORECASE)
+
+    # Create regular expressions to modify quote styles
+    trad_to_simp_quotes = {'「':'＂', '」':'＂', '『':'＇', '』':'＇'}
+    trad_to_simp_re = re.compile('|'.join(map(re.escape, trad_to_simp_quotes)))
+
+    trad_to_simp_smart_quotes = {'「':'“', '」':'”', '『':'‘', '』':'’'}
+    trad_to_simp_smart_re = re.compile('|'.join(map(re.escape, trad_to_simp_smart_quotes)))
+
+    # Only change double quotes since a lone single quote might be used in an abbreviation
+    simp_to_trad_quotes = {'“':'「', '”':'」'}
+    simp_to_trad_re = re.compile('|'.join(map(re.escape, simp_to_trad_quotes)))    
 
     def create_action(self, for_toolbar=True):
         # Create an action, this will be added to the plugins toolbar and
@@ -129,7 +142,32 @@ class TradSimpChinese(Tool):
                         _('No file open for editing or the current file is not an (x)html file.'), show=True)
 
             data = container.raw_data(name)
-            htmlstr = self.convert_text(data, criteria)
+            if (criteria[5]):
+                # update quotes was selected
+                if (criteria[1] == 0):
+                    # traditional to simplified
+                    if (criteria[6]):
+                        htmlstr_corrected = self.trad_to_simp_smart_re.sub(lambda match: self.trad_to_simp_smart_quotes[match.group(0)], data)
+                    else:
+                        htmlstr_corrected = self.trad_to_simp_re.sub(lambda match: self.trad_to_simp_quotes[match.group(0)], data)
+                elif (criteria[1] == 1):
+                    # simplified to traditional
+                    # replace trailing full width double quotes using 」
+                    htmlstrA = re.sub(r'(＂(?:(?!＂).)*)＂((?:(?!＂).)*)', r'\1」\2', data)
+                    # replace trailing full width single quotes using 』
+                    htmlstrB = re.sub(r'(＇(?:(?!＇).)*)＇((?:(?!＇).)*)', r'\1』\2', htmlstrA)
+                    # replace leading full width double quotes using 「
+                    htmlstrC = htmlstrB.replace('＂', '「')
+                    # replace leading full width single quotes using 『
+                    htmlstrD = htmlstrC.replace('＇', '『')
+                    # replace any curved double quotes
+                    htmlstr_corrected = self.simp_to_trad_re.sub(lambda match: self.simp_to_trad_quotes[match.group(0)], htmlstrD)
+                else:
+                    # traditional to traditional
+                    htmlstr_corrected = data
+            else:
+                htmlstr_corrected = data
+            htmlstr = self.convert_text(htmlstr_corrected, criteria)
             if htmlstr != data:
                 self.filesChanged = True
                 self.changed_files.append(name)
@@ -428,10 +466,8 @@ def print_conversion_info(args, file_set, version, configuration_filename):
 def main(argv, plugin_version, usage=None):
     import argparse
     import glob
-    from calibre_plugins.chinese_text.resources.opencc_python.opencc import OpenCC
 
     converter = OpenCC()
-
     criteria = None
 
     list_of_locales = ['cn', 'hk', 'tw']
