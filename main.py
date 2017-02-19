@@ -142,32 +142,7 @@ class TradSimpChinese(Tool):
                         _('No file open for editing or the current file is not an (x)html file.'), show=True)
 
             data = container.raw_data(name)
-            if (criteria[5]):
-                # update quotes was selected
-                if (criteria[1] == 0):
-                    # traditional to simplified
-                    if (criteria[6]):
-                        htmlstr_corrected = self.trad_to_simp_smart_re.sub(lambda match: self.trad_to_simp_smart_quotes[match.group(0)], data)
-                    else:
-                        htmlstr_corrected = self.trad_to_simp_re.sub(lambda match: self.trad_to_simp_quotes[match.group(0)], data)
-                elif (criteria[1] == 1):
-                    # simplified to traditional
-                    # replace trailing full width double quotes using 」
-                    htmlstrA = re.sub(r'(＂(?:(?!＂).)*)＂((?:(?!＂).)*)', r'\1」\2', data)
-                    # replace trailing full width single quotes using 』
-                    htmlstrB = re.sub(r'(＇(?:(?!＇).)*)＇((?:(?!＇).)*)', r'\1』\2', htmlstrA)
-                    # replace leading full width double quotes using 「
-                    htmlstrC = htmlstrB.replace('＂', '「')
-                    # replace leading full width single quotes using 『
-                    htmlstrD = htmlstrC.replace('＇', '『')
-                    # replace any curved double quotes
-                    htmlstr_corrected = self.simp_to_trad_re.sub(lambda match: self.simp_to_trad_quotes[match.group(0)], htmlstrD)
-                else:
-                    # traditional to traditional
-                    htmlstr_corrected = data
-            else:
-                htmlstr_corrected = data
-            htmlstr = self.convert_text(htmlstr_corrected, criteria)
+            htmlstr = self.convert_text(data, criteria)
             if htmlstr != data:
                 self.filesChanged = True
                 self.changed_files.append(name)
@@ -188,7 +163,32 @@ class TradSimpChinese(Tool):
 
     def convert_text(self, data, criteria):
         from calibre_plugins.chinese_text.resources.utilities import tokenize
-        tokens = tokenize(data)
+        if (criteria[5]):
+            # update quotes was selected
+            if (criteria[1] == 0):
+                # traditional to simplified
+                if (criteria[6]):
+                    htmlstr_corrected = self.trad_to_simp_smart_re.sub(lambda match: self.trad_to_simp_smart_quotes[match.group(0)], data)
+                else:
+                    htmlstr_corrected = self.trad_to_simp_re.sub(lambda match: self.trad_to_simp_quotes[match.group(0)], data)
+            elif (criteria[1] == 1):
+                # simplified to traditional
+                # replace trailing full width double quotes using 」
+                htmlstrA = re.sub(r'(＂(?:(?!＂).)*)＂((?:(?!＂).)*)', r'\1」\2', data)
+                # replace trailing full width single quotes using 』
+                htmlstrB = re.sub(r'(＇(?:(?!＇).)*)＇((?:(?!＇).)*)', r'\1』\2', htmlstrA)
+                # replace leading full width double quotes using 「
+                htmlstrC = htmlstrB.replace('＂', '「')
+                # replace leading full width single quotes using 『
+                htmlstrD = htmlstrC.replace('＇', '『')
+                # replace any curved double quotes
+                htmlstr_corrected = self.simp_to_trad_re.sub(lambda match: self.simp_to_trad_quotes[match.group(0)], htmlstrD)
+            else:
+                # traditional to traditional
+                htmlstr_corrected = data
+        else:
+            htmlstr_corrected = data
+        tokens = tokenize(htmlstr_corrected)
         result = []
         for cur_token in tokens:
             if cur_token[0] == "tag":
