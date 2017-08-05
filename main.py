@@ -271,9 +271,10 @@ def set_metadata_toc(container, language, criteria, changed_files, converter):
     if len(items) > 0:
         for item in items:
             old_item = item.text
-            item.text = converter.convert(item.text)
-            if item.text != old_item:
-                opfChanged = True
+            if (item.text != None):
+                item.text = converter.convert(item.text)
+                if item.text != old_item:
+                    opfChanged = True
             for attribute in item.attrib: # update file-as attribute
                 item.attrib[attribute] = converter.convert(item.attrib[attribute])
     # Update the remaining dc items using a loop
@@ -282,9 +283,10 @@ def set_metadata_toc(container, language, criteria, changed_files, converter):
         if len(items) > 0:
             for item in items:
                 old_item = item.text
-                item.text = converter.convert(item.text)
-                if item.text != old_item:
-                    opfChanged = True
+                if (item.text != None):
+                    item.text = converter.convert(item.text)
+                    if item.text != old_item:
+                        opfChanged = True
 
     # Update the TOC - Do this after modifying the OPF data
     # Just grab all <text> fields (AKA "title" attribute in a TOC object)
