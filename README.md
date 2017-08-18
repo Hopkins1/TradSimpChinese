@@ -1,8 +1,10 @@
-Chinese Text Conversion (A Calibre ebook editor plugin)
+Chinese (and Japanese) Text Conversion (A Calibre ebook editor plugin)
 ============
 
 Currently, the Chinese language is written with two different standardized character sets. The Chinese mainland and Singapore officially use the simplified set while other areas (such as Taiwan and Hong Kong) continue to largely use the traditional set. This Calibre ebook editor plugin will allow users to convert between both formats.
 
+It also can make changes to quotation mark formats and text flow direction. This
+useful when dealing with Japanese ebooks.
 
 **Main Features**<br/>
 
@@ -12,11 +14,13 @@ Currently, the Chinese language is written with two different standardized chara
 
 3) Convert regional words and idioms used in the source material to those words and idioms used in the destination material
 
-4) Convert individual sections or the entire book
+4) Convert text direction
 
-5) Update metadata and table of contents
+5) Convert individual sections or the entire book
 
-6) Provides command line processing for batch operations
+6) Update metadata and table of contents
+
+7) Provides command line processing for batch operations
 
 7) This is an editor plugin so users can make changes in case the conversion is not perfect
 
@@ -26,7 +30,9 @@ Currently, the Chinese language is written with two different standardized chara
 
 2) This plugin uses data from OpenCC (https://github.com/BYVoid/OpenCC). License: Apache License 2.0
 
-2) The plugin also uses python code from DiapDealer's Editing Toolbag (https://www.mobileread.com/forums/sho...d.php?t=251365). Licenese: GPL3
+3) Python Software Foundation code (GPL Compatible)
+
+4) The plugin also uses python code from DiapDealer's Editing Toolbag (https://www.mobileread.com/forums/sho...d.php?t=251365). Licenese: GPL3
 
 
 Support Link
