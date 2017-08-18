@@ -42,7 +42,8 @@ def tokenize(str):
     # match = r"""(?: <! ( -- .*? -- \s* )+ > ) |  # comments
     # (?: <\? .*? \?> ) |  # directives
     # %s  # nested tags       """ % (nested_tags,)
-    tag_soup = re.compile(r"""([^<]*)(<[^>]*>)""")
+    # tag_soup = re.compile(r"""([^<]*)(<[^>]*>)""")
+    tag_soup = re.compile(r"""([^<]*)(<!--.*?--\s*>|<[^>]*>)""", re.S)
 
     token_match = tag_soup.search(str)
 
@@ -51,7 +52,13 @@ def tokenize(str):
         if token_match.group(1):
             tokens.append(['text', token_match.group(1)])
 
-        tokens.append(['tag', token_match.group(2)])
+        tag = token_match.group(2)
+        type_ = 'tag'
+        if tag.startswith('<!--'):
+            # remove --[white space]> from the end of tag
+            if '--' in tag[4:].rstrip('>').rstrip().rstrip('-'):
+                type_ = 'text'
+        tokens.append([type_, tag])
 
         previous_end = token_match.end()
         token_match = tag_soup.search(str, token_match.end())
