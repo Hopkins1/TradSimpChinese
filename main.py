@@ -7,6 +7,7 @@ __copyright__ = '2016, Hopkins'
 
 import re, os.path
 from itertools import tee, islice, izip_longest
+from cssutils import  css, stylesheets
 
 try:
     from PyQt5.Qt import Qt, QAction, QDialog, QApplication, QCursor
@@ -39,6 +40,24 @@ https://en.wikipedia.org/wiki/Traditional_Chinese_characters
 https://en.wikipedia.org/wiki/Debate_on_traditional_and_simplified_Chinese_characters
 
 '''
+
+# Horizontal full width characters to their vertical presentation forms lookup
+_h2v_dict = {'。':'︒', '、':'︑', '；':'︔', '：':'︓', '！':'︕', '？':'︖', '「':'﹁', '」':'﹂', '〈':'︿', '〉':'﹀',
+        '『':'﹃', '』':'﹄', '《':'︽', '》':'︾', '【':'︻', '（':'︵', '】':'︼', '）':'︶','〖': '︗', '〗':'︘',
+        '〔':'︹', '｛':'︷', '〕':'︺', '｝':'︸', '［':'﹇', '］':'﹈', '…':'︙', '‥':'︰', '—':'︱', '＿':'︳',
+        '﹏':'︴', '，':'︐'}
+
+# Vertical full width characters to their Horizontal presentation forms lookup
+_v2h_dict = {v: k for k, v in _h2v_dict.iteritems()}
+
+# The US Kindle Paperwhite does not correctly display some vertical glyph forms. Remove the characters that
+# have problems from _h2v_dict
+_h2vkindle_dict = {'。':'︒', '：':'︓', '「':'﹁', '」':'﹂', '〈':'︿', '〉':'﹀', '『':'﹃', '』':'﹄', '《':'︽', '》':'︾',
+                   '【':'︻', '（':'︵', '】':'︼', '）':'︶', '〔':'︹', '｛':'︷', '〕':'︺',
+                   '｝':'︸', '［':'﹇', '］':'﹈', '—':'︱', '﹏':'︴', '，':'︐'}
+
+_zh_re = re.compile('lang=\"zh-\w+\"|lang=\"zh\"', re.IGNORECASE)
+
 class TradSimpChinese(Tool):
     from calibre_plugins.chinese_text.resources.opencc_python.opencc import OpenCC
     converter = OpenCC()
@@ -50,19 +69,6 @@ class TradSimpChinese(Tool):
 
     #: If True the user can choose to place this tool in the plugins menu
     allowed_in_menu = True
-    
-    zh_re = re.compile('lang=\"zh-\w+\"|lang=\"zh\"', re.IGNORECASE)
-
-    # Create regular expressions to modify quote styles
-    trad_to_simp_quotes = {'「':'＂', '」':'＂', '『':'＇', '』':'＇'}
-    trad_to_simp_re = re.compile('|'.join(map(re.escape, trad_to_simp_quotes)))
-
-    trad_to_simp_smart_quotes = {'「':'“', '」':'”', '『':'‘', '』':'’'}
-    trad_to_simp_smart_re = re.compile('|'.join(map(re.escape, trad_to_simp_smart_quotes)))
-
-    # Only change double quotes since a lone single quote might be used in an abbreviation
-    simp_to_trad_quotes = {'“':'「', '”':'」'}
-    simp_to_trad_re = re.compile('|'.join(map(re.escape, simp_to_trad_quotes)))    
 
     def create_action(self, for_toolbar=True):
         # Create an action, this will be added to the plugins toolbar and
@@ -105,7 +111,8 @@ class TradSimpChinese(Tool):
                 else:
                     QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
                     QApplication.processEvents()
-                    self.converter.set_conversion(get_configuration(criteria))
+                    if conversion != 'no_conversion':
+                        self.converter.set_conversion(get_configuration(criteria))
                     self.process_files(criteria)
                     QApplication.restoreOverrideCursor()
             except Exception:
@@ -129,7 +136,7 @@ class TradSimpChinese(Tool):
                     self.boss.apply_container_update_to_gui()
                 elif conversion != 'None':
                     info_dialog(self.gui, _('No Changes'),
-                                _('No text meeting your criteria was found to change.'), show=True)
+                                _('No text meeting your criteria was found to change.\nNo changes made.'), show=True)
 
     def process_files(self, criteria):
         container = self.current_container  # The book being edited as a container object
@@ -150,53 +157,103 @@ class TradSimpChinese(Tool):
 
         else:
             # Cover the entire book
-            # Set metadata and Table of Contents (TOC)
-            self.filesChanged = self.filesChanged or set_metadata_toc(container, get_language_code(criteria), criteria, self.changed_files, self.converter)
+            # Set metadata and Table of Contents (TOC) if language changed
+            if criteria[1] != 0:
+                self.filesChanged = set_metadata_toc(container, get_language_code(criteria), criteria, self.changed_files, self.converter)
+            # Check for orientation change
+            direction_changed = False
+            if criteria[7] != 0:
+                direction_changed = set_flow_direction(container, get_language_code(criteria), criteria, self.changed_files, self.converter)
+
             # Cover the text portion
             from calibre_plugins.chinese_text.resources.dialogs import ShowProgressDialog
             d = ShowProgressDialog(self.gui, container, OEB_DOCS, criteria, self.convert_text, _('Converting'))
             cancelled_msg = ''
             if d.wasCanceled():
                 cancelled_msg = ' (cancelled)'
-            self.filesChanged = self.filesChanged or (not d.clean)
+            self.filesChanged = self.filesChanged or (not d.clean) or direction_changed
             self.changed_files.extend(d.changed_files)
 
     def convert_text(self, data, criteria):
         from calibre_plugins.chinese_text.resources.utilities import tokenize
-        if (criteria[5]):
-            # update quotes was selected
-            if (criteria[1] == 0):
-                # traditional to simplified
-                if (criteria[6]):
-                    htmlstr_corrected = self.trad_to_simp_smart_re.sub(lambda match: self.trad_to_simp_smart_quotes[match.group(0)], data)
-                else:
-                    htmlstr_corrected = self.trad_to_simp_re.sub(lambda match: self.trad_to_simp_quotes[match.group(0)], data)
-            elif (criteria[1] == 1):
-                # simplified to traditional
-                # replace trailing full width double quotes using 」
-                htmlstrA = re.sub(r'(＂(?:(?!＂).)*)＂((?:(?!＂).)*)', r'\1」\2', data)
-                # replace trailing full width single quotes using 』
-                htmlstrB = re.sub(r'(＇(?:(?!＇).)*)＇((?:(?!＇).)*)', r'\1』\2', htmlstrA)
-                # replace leading full width double quotes using 「
-                htmlstrC = htmlstrB.replace('＂', '「')
-                # replace leading full width single quotes using 『
-                htmlstrD = htmlstrC.replace('＇', '『')
-                # replace any curved double quotes
-                htmlstr_corrected = self.simp_to_trad_re.sub(lambda match: self.simp_to_trad_quotes[match.group(0)], htmlstrD)
-            else:
-                # traditional to traditional
-                htmlstr_corrected = data
-        else:
-            htmlstr_corrected = data
+
+        htmlstr_corrected = replace_quotations(data, criteria)
+
         tokens = tokenize(htmlstr_corrected)
         result = []
         for cur_token in tokens:
             if cur_token[0] == "tag":
                 # change language code inside of tags
-                result.append(self.zh_re.sub(self.language, cur_token[1]))
+                if criteria[0] != 0:
+                    result.append(_zh_re.sub(self.language, cur_token[1]))
+                else:
+                    result.append(cur_token[1])
             else:
-                result.append(self.converter.convert(cur_token[1]))
+                # Update punctuation based on text direction if needed
+                if criteria[8] != 0:
+                    if criteria[7] == 1:
+                        cur_token[1] = multiple_replace(_v2h_dict, cur_token[1])
+                    elif criteria[7] == 2:
+                        if criteria[8] == 1:
+                            cur_token[1] = multiple_replace(_h2v_dict, cur_token[1])
+                        else:
+                            cur_token[1] = multiple_replace(_h2vkindle_dict, cur_token[1])
+                # Convert text if needed
+                if criteria[1] != 0:
+                    result.append(self.converter.convert(cur_token[1]))
+                else:
+                    result.append(cur_token[1])
         return "".join(result)
+
+
+def replace_quotations(data, criteria):
+    # Create regular expressions to modify quote styles
+    trad_to_simp_quotes = {'「':'＂', '」':'＂', '『':'＇', '』':'＇'}
+    trad_to_simp_re = re.compile('|'.join(map(re.escape, trad_to_simp_quotes)))
+
+    trad_to_simp_smart_quotes = {'「':'“', '」':'”', '『':'‘', '』':'’'}
+    trad_to_simp_smart_re = re.compile('|'.join(map(re.escape, trad_to_simp_smart_quotes)))
+
+    # Only change double quotes since a lone single quote might be used in an abbreviation
+    simp_to_trad_quotes = {'“':'「', '”':'」'}
+    simp_to_trad_re = re.compile('|'.join(map(re.escape, simp_to_trad_quotes)))
+
+    # update quotes if desired
+    if criteria[5] == 1:
+        # traditional to simplified
+        if (criteria[6]):
+            # use smart quotes
+            htmlstr_corrected = trad_to_simp_smart_re.sub(lambda match: trad_to_simp_smart_quotes[match.group(0)], data)
+        else:
+            # use full width standard quotes
+            htmlstr_corrected = trad_to_simp_re.sub(lambda match: trad_to_simp_quotes[match.group(0)], data)
+    elif criteria[5] == 2:
+        # simplified to traditional
+        # replace trailing full width double quotes using 」
+        htmlstrA = re.sub(r'(＂(?:(?!＂).)*)＂((?:(?!＂).)*)', r'\1」\2', data)
+        # replace trailing full width single quotes using 』
+        htmlstrB = re.sub(r'(＇(?:(?!＇).)*)＇((?:(?!＇).)*)', r'\1』\2', htmlstrA)
+        # replace leading full width double quotes using 「
+        htmlstrC = htmlstrB.replace('＂', '「')
+        # replace leading full width single quotes using 『
+        htmlstrD = htmlstrC.replace('＇', '『')
+        # replace any curved double quotes
+        htmlstr_corrected = simp_to_trad_re.sub(lambda match: simp_to_trad_quotes[match.group(0)], htmlstrD)
+    else:
+        # no quote changes desired
+        htmlstr_corrected = data
+    return htmlstr_corrected
+
+# multiple_replace copied from ActiveState http://code.activestate.com/recipes/81330-single-pass-multiple-replace/
+# Copyright 2001 Xavier Defrang
+# PSF (Python Software Foundation) license (GPL Compatible)
+# https://docs.python.org/3/license.html
+def multiple_replace(dict, text):
+  # Create a regular expression  from the dictionary keys
+  regex = re.compile("(%s)" % "|".join(map(re.escape, dict.keys())))
+
+  # For each match, look-up corresponding value in dictionary
+  return regex.sub(lambda mo: dict[mo.string[mo.start():mo.end()]], text)
 
 def get_language_code(criteria):
     """
@@ -208,13 +265,13 @@ def get_language_code(criteria):
     output_type = criteria[3]
     use_target_phrasing = criteria[4]
 
-    language_code = ''
+    language_code = 'None'
 
-    if conversion_mode == 0:
+    if conversion_mode == 1:
         #trad to simp, output type is always mainland (we don't yet support Malaysia/Singapore zh-SG)
         language_code = 'zh-CN'
 
-    elif conversion_mode == 1:
+    elif conversion_mode == 2:
         #simp to trad, (we don't support Macau yet zh-MO)
         if output_type == 0:
             language_code = 'zh-CN'
@@ -223,7 +280,7 @@ def get_language_code(criteria):
         else:
             language_code = 'zh-TW'
 
-    else:
+    elif conversion_mode == 3:
         #trad to trad, (we don't support Macau yet zh-MO)
         if input_type == 0:
             if output_type == 1:
@@ -245,7 +302,6 @@ def set_metadata_toc(container, language, criteria, changed_files, converter):
     
     opfChanged = False
     tocChanged = False
-    zh_re2 = re.compile('zh-\w+|zh', re.IGNORECASE)
     # List of dc items in OPF file that get a simple text replacement
     # Add more items to this list if needed
     dc_list = ['//opf:metadata/dc:title',
@@ -309,10 +365,74 @@ def set_metadata_toc(container, language, criteria, changed_files, converter):
         changed_files.append(container.opf_name)
     return(tocChanged or opfChanged)
 
+def set_flow_direction(container, language, criteria, changed_files, converter):
+    # Open OPF and set flow
+    flow = 'default'
+    if criteria[7] == 2:
+        flow = 'rtl'
+    elif criteria[7] == 1:
+        flow = 'ltr'
+    # Look for the 'spine' element and change the direction attribute
+    items = container.opf_xpath('//opf:spine')
+    fileChanged = False
+    if len(items) > 0:
+        for item in items:
+            if 'page-progression-direction' in item.attrib:
+                if item.attrib['page-progression-direction'] != flow:
+                    fileChanged = True
+            else:
+                fileChanged = True
+            item.attrib['page-progression-direction'] = flow
+    if fileChanged:
+        container.dirty(container.opf_name)
+        if container.opf_name not in changed_files:
+            changed_files.append(container.opf_name)
+
+    # Open CSS and set layout direction in the body section
+    if criteria[7] == 1:
+        orientation = 'horizontal-tb'
+    if criteria[7] == 2:
+        orientation = 'vertical-rl'
+    # Loop through all the files in the epub looking for CSS style sheets
+    foundBody = False
+    for name, mt in container.mime_map.iteritems():
+        if mt in OEB_STYLES:
+            # Get the sheet as a python cssutils CSSStyleSheet object
+            sheet = container.parsed(name)
+            # Look through all the rules and find any with a 'body' selector
+            rules = (rule for rule in sheet if rule.type == rule.STYLE_RULE)
+            for rule in rules:
+                for selector in rule.selectorList:
+                    if selector.selectorText == u'body':
+                        foundBody = True
+                        # Found a rule for the body; check if it has writing mode
+                        # Check if -epub-writing-mode is set correctly
+                        if rule.style['-epub-writing-mode'] != orientation:
+                            rule.style['-epub-writing-mode'] = orientation
+                            fileChanged = True
+                            changed_files.append(name)
+                            container.dirty(name)
+
+    # If no 'body' selector rule is found in any css file, add one to every css file
+    if not foundBody:
+        for name, mt in container.mime_map.iteritems():
+            if mt in OEB_STYLES:
+                # Get the sheet as a python cssutils CSSStyleSheet object
+                sheet = container.parsed(name)
+                # Create a style rule for body.
+                styleEntry = css.CSSStyleDeclaration()
+                styleEntry['-epub-writing-mode'] = orientation
+                styleRule = css.CSSStyleRule(selectorText=u'body', style=styleEntry)
+                sheet.add(styleRule)
+                fileChanged = True
+                changed_files.append(name)
+                container.dirty(name)
+    return fileChanged
+
 def get_configuration(criteria):
     """
     :param criteria: the description of the desired conversion
-    :return: 'hk2s', 's2hk', 's2t', 's2tw', 's2twp', 't2hk', 't2s', 't2tw', 'tw2s', 'tw2sp', or 'None'
+    :return: 'hk2s', 's2hk', 's2t', 's2tw', 's2twp', 't2hk', 't2s', 't2tw', 'tw2s', 'tw2sp', 'no_convert', or 'None'
     """
     conversion_mode = criteria[1]
     input_type = criteria[2]
@@ -322,6 +442,10 @@ def get_configuration(criteria):
     configuration = ''
 
     if conversion_mode == 0:
+        #no conversion desired
+        configuration = 'no_convert'
+
+    elif conversion_mode == 1:
         #trad to simp, output type is always mainland
         if input_type == 0:
             configuration = 't2s'
@@ -332,7 +456,7 @@ def get_configuration(criteria):
             if use_target_phrasing:
                 configuration += 'p'
 
-    elif conversion_mode == 1:
+    elif conversion_mode == 2:
         #simp to trad, input type is always mainland
         configuration = 's'
         if output_type == 0:
@@ -360,43 +484,75 @@ def get_configuration(criteria):
             configuration = 'None'
     return configuration
 
-def cli_convert_text(data, language, converter):
+def cli_convert_text(data, criteria, language, converter):
     from calibre_plugins.chinese_text.resources.utilities import tokenize
-    tokens = tokenize(data)
+
+    htmlstr_corrected = replace_quotations(data, criteria)
+
+    tokens = tokenize(htmlstr_corrected)
     result = []
     for cur_token in tokens:
         if cur_token[0] == "tag":
             # change language code inside of tags
-            result.append(re.sub('lang=\"zh-\w+\"|lang=\"zh\"', 'lang=\"' + language + '\"', cur_token[1], flags=re.IGNORECASE))
+            if criteria[0] != 0:
+                result.append(_zh_re.sub(self.language, cur_token[1]))
+            else:
+                result.append(cur_token[1])
         else:
-            result.append(converter.convert(cur_token[1]))
+            # Update punctuation based on text direction if needed
+            if criteria[8] != 0:
+                if criteria[7] == 1:
+                    cur_token[1] = multiple_replace(_v2h_dict, cur_token[1])
+                elif criteria[7] == 2:
+                    if criteria[8] == 1:
+                        cur_token[1] = multiple_replace(_h2v_dict, cur_token[1])
+                    else:
+                        cur_token[1] = multiple_replace(_h2vkindle_dict, cur_token[1])
+            # Convert text if needed
+            if criteria[1] != 0:
+                result.append(converter.convert(cur_token[1]))
+            else:
+                result.append(cur_token[1])
     return "".join(result)
 
 def cli_get_criteria(args):
     #Note: criteria is a tuple of the form:
     #criteria = (
     #        process_single_file(BOOL), output_mode(INT), input_locale(INT),
-    #        output_locale(INT), use_target_phrases(BOOL))
+    #        output_locale(INT), use_target_phrases(BOOL), quote_type(INT)),
+    #        smart_quotes(BOOL), text_direction(INT)
     #   process_single_file:    True - In editor only process a selected file in epub
     #                           False - Process all files in epub
-    #   output_mode:    0 = traditional->simplified
-    #                   1 = simplified->traditional
-    #                   2 = traditional->traditional
+    #   output_mode:    0 = no change
+    #                   1 = traditional->simplified
+    #                   2 = simplified->traditional
+    #                   3 = traditional->traditional
     #   input_locale:   0 = Mainland, 1 = Hong Kong, 2 = Taiwan
     #   output_local:   0 = Mainland, 1 = Hong Kong, 2 = Taiwan
     #   use_target_phrase:  True - Modify text to use words associated with target locale
+    #   quote_type:     0 = No change, 1 = Western, 2 = East Asian
+    #   use_smart_quotes:   True - Use curves quotation marks if quote_type is Western
+    #   text_direction: 0 = No change, 1 = Horizontal, 2 = Vertical
+    #   optimization:   0 = No change, 1 = Readium, 2 = Kindle
 
     # Set up default values
     process_single_file = False
-    output_mode = 0     # Traditional->Simplified 
-    input_locale = 0    # Mainland
-    output_locale = 0   # Mainland
-    use_target_phrase = False  
+    output_mode = 0           # None 
+    input_locale = 0          # Mainland
+    output_locale = 0         # Mainland
+    use_target_phrase = False
+    quote_type = 0            # No change
+    use_smart_quotes = True
+    text_direction = 0        # No change
+    optimization = 0          # No change
+    
 
-    if args.direction_opt == 's2t':
+    if args.direction_opt == 't2s':
         output_mode = 1
-    elif args.direction_opt == 't2t':
+    elif args.direction_opt == 's2t':
         output_mode = 2
+    elif args.direction_opt == 't2t':
+        output_mode = 3
 
     if args.orig_opt == 'hk':
         input_locale = 1
@@ -409,10 +565,28 @@ def cli_get_criteria(args):
         output_locale = 2
         
     use_target_phrase = args.phrase_opt
+
+    if args.quote_type_opt == 'w':
+        quote_type = 1
+    elif args.quote_type_opt == 'e':
+        quote_type = 2
+
+    if args.text_dir_opt == 'h':
+        text_direction = 1
+    elif args.text_dir_opt == 'v':
+        text_direction = 2
+
+    use_smart_quotes = args.smart_quotes_opt
+
+    if args.optimization_opt == 'r':
+        optimization = 1
+    elif args.text_dir_opt == 'k':
+        optimization = 2
     
     criteria = (
         process_single_file, output_mode, input_locale,
-        output_locale, use_target_phrase)
+        output_locale, use_target_phrase, quote_type,
+        use_smart_quotes, text_direction, optimization)
     return criteria
 
 def cli_process_files(criteria, container, converter):
@@ -423,13 +597,18 @@ def cli_process_files(criteria, container, converter):
     # Set metadata and Table of Contents (TOC)
     changed_files = []
     set_metadata_toc(container, lang, criteria, changed_files, converter)
+
+    # Set text orientation
+    if criteria[7] != 0:
+        direction_changed = set_flow_direction(container, lang, criteria, changed_files, converter)
+
     # Cover the text
     file_list = [i[0] for i in container.mime_map.items() if i[1] in OEB_DOCS]
     clean = True
     for name in file_list:
         data = container.raw_data(name)
         orig_hash = md5(data).digest()
-        htmlstr = cli_convert_text(data, lang, converter)
+        htmlstr = cli_convert_text(data, criteria, lang, converter)
         new_hash = md5(htmlstr).digest()
         if new_hash != orig_hash:
             container.dirty(name)
@@ -444,15 +623,46 @@ def print_conversion_info(args, file_set, version, configuration_filename):
     print(_('Plugin version: ') + str(version[0]) + '.' + str(version[1]) + '.' + str(version[2]))
     print(_('Configuration file: '), configuration_filename)
     print(_('Output direction: '), end="")
-    if args.direction_opt == 't2s':
+    if args.direction_opt == 'none':
+        print(_('No change'))
+    elif args.direction_opt == 't2s':
         print(_('Traditional->Simplified'))
     elif args.direction_opt == 's2t':
         print(_('Simplified->Traditional'))
     else:
         print(_('Traditional->Traditional'))
-    print(_('Chinese input locale: ') + args.orig_opt.upper())
-    print(_('Chinese output locale: ') + args.dest_opt.upper())
-    print(_('Use destination phrases: ') + str(args.phrase_opt))
+    if args.direction_opt != 'none':
+        print(_('Chinese input locale: ') + args.orig_opt.upper())
+        print(_('Chinese output locale: ') + args.dest_opt.upper())
+        print(_('Use destination phrases: ') + str(args.phrase_opt))
+
+    print(_('Quotation Mark Style: '), end="")
+    if args.quote_type_opt == 'no_change':
+        print(_('No Change'))
+    elif args.quote_type_opt == 'w':
+        print(_('Western'))
+        if args.smart_quotes_opt:
+            print(_('Using smart quotes'))
+        else:
+            print(_('Using standard quotes'))
+    else:
+        print(_('East Asian'))
+
+    print(_('Text direction: '), end="")
+    if args.text_dir_opt == 'no_change':
+        print('No Change')
+    elif args.text_dir_opt == 'h':
+        print(_('Horizontal'))
+    else:
+        print (_('Vertical'))
+
+    if args.text_dir_opt != 'no_change':
+         print(_('Text presentation optimization: '), end="")
+         if args.optimization_opt == 'r':
+             print(_('Readium'))
+         else:
+             print(_('Kindle'))
+
     if args.outdir_opt == None and args.append_suffix_opt == '':
         print(_('Output directory: Overwrite existing file'))
     elif args.outdir_opt == None:
@@ -473,17 +683,31 @@ def main(argv, plugin_version, usage=None):
     criteria = None
 
     list_of_locales = ['cn', 'hk', 'tw']
-    list_of_directions = ['t2s', 's2t', 't2t']
-    parser = argparse.ArgumentParser(description=_('Convert Chinese characters between traditional (t) and simplified (s) types.\nPlugin Version: ') +
+    list_of_directions = ['t2s', 's2t', 't2t', 'none']
+    quotation_types = ['w', 'e', 'no_change']
+    text_directions = ['h', 'v', 'no_change']
+    optimization = ['r', 'k', 'none']
+
+    parser = argparse.ArgumentParser(description=_('Convert Chinese characters between traditional/simplified types and/or change text style.\nPlugin Version: ') +
                                      str(plugin_version[0]) + '.' + str(plugin_version[1]) + '.' + str(plugin_version[2]))
     parser.add_argument('-il', '--input-locale', dest='orig_opt', default='cn',
                         help=_('Set to the epub origin locale if known (Default: cn)'), choices=list_of_locales)
     parser.add_argument('-ol', '--output-locale', dest='dest_opt', default='cn',
                         help=_('Set to the epub target locale (Default: cn)'), choices=list_of_locales)
-    parser.add_argument('-d', '--direction', dest='direction_opt', default='t2s',
-                        help=_('Set to the epub conversion direction (Default: t2s)'), choices=list_of_directions)
+    parser.add_argument('-d', '--direction', dest='direction_opt', default='none',
+                        help=_('Set to the epub conversion direction (Default: none)'), choices=list_of_directions)
     parser.add_argument('-p', '--phrase_convert', dest='phrase_opt', help=_('Convert phrases to target locale versions (Default: False)'),
                         action='store_true')
+
+    parser.add_argument('-qt', '--quotation-type', dest='quote_type_opt', default='no_change',
+                        help=_('Set to the epub origin locale if known (Default: no_change)'), choices=quotation_types)
+    parser.add_argument('-sq', '--smart_quotes', dest='smart_quotes_opt', help=_('Use smart quotes if applicable (Default: False)'),
+                        action='store_true')
+    parser.add_argument('-td', '--text-direction', dest='text_dir_opt', default='no_change',
+                        help=_('Set to the epub origin locale if known (Default: no_change)'), choices=text_directions)
+    parser.add_argument('-tdo', '--text-device-optimize', dest='optimization_opt', help=_('Optimize text for device (Default: none)'),
+                        choices=optimization)
+
     parser.add_argument('-v', '--verbose', dest='verbose_opt', help=_('Print out details as the conversion progresses (Default: False)'),
                         action='store_true')
     parser.add_argument('-t', '--test', dest='test_opt', help=_('Run conversion operations without saving results (Default: False)'),
