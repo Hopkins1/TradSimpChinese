@@ -596,7 +596,8 @@ def cli_process_files(criteria, container, converter):
     # Cover the entire book
     # Set metadata and Table of Contents (TOC)
     changed_files = []
-    set_metadata_toc(container, lang, criteria, changed_files, converter)
+    if criteria[1] != 0:
+        set_metadata_toc(container, lang, criteria, changed_files, converter)
 
     # Set text orientation
     if criteria[7] != 0:
@@ -621,7 +622,8 @@ def cli_process_files(criteria, container, converter):
 def print_conversion_info(args, file_set, version, configuration_filename):
     print('')
     print(_('Plugin version: ') + str(version[0]) + '.' + str(version[1]) + '.' + str(version[2]))
-    print(_('Configuration file: '), configuration_filename)
+    if args.direction_opt != 'none':
+        print(_('Configuration file: '), configuration_filename)
     print(_('Output direction: '), end="")
     if args.direction_opt == 'none':
         print(_('No change'))
@@ -660,8 +662,10 @@ def print_conversion_info(args, file_set, version, configuration_filename):
          print(_('Text presentation optimization: '), end="")
          if args.optimization_opt == 'r':
              print(_('Readium'))
-         else:
+         elif args.optimization_opt == 'k':
              print(_('Kindle'))
+         else:
+             print(_('None'))
 
     if args.outdir_opt == None and args.append_suffix_opt == '':
         print(_('Output directory: Overwrite existing file'))
@@ -779,9 +783,11 @@ def main(argv, plugin_version, usage=None):
             print_conversion_info(args, file_set, plugin_version, '??')
             print(_('The input/output/direction combination selected is not supported.\n Please use a different input/output/direction combination'))
         return(1)
+    elif conversion == 'no_convert':
+        pass
     else:
         if args.verbose_opt and not args.quiet_opt:
-            print(_('Using opancc-python conversion configuration file: ') + conversion + '.json')
+            print(_('Using opencc-python conversion configuration file: ') + conversion + '.json')
         converter.set_conversion(conversion)
 
     #Print out the conversion info
