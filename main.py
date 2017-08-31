@@ -46,15 +46,18 @@ _h2v_dict = {'。':'︒', '、':'︑', '；':'︔', '：':'︓', '！':'︕', '�
         '『':'﹃', '』':'﹄', '《':'︽', '》':'︾', '【':'︻', '（':'︵', '】':'︼', '）':'︶','〖': '︗', '〗':'︘',
         '〔':'︹', '｛':'︷', '〕':'︺', '｝':'︸', '［':'﹇', '］':'﹈', '…':'︙', '‥':'︰', '—':'︱', '＿':'︳',
         '﹏':'︴', '，':'︐'}
+_h2v_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, _h2v_dict.keys())))
 
 # Vertical full width characters to their Horizontal presentation forms lookup
 _v2h_dict = {v: k for k, v in _h2v_dict.iteritems()}
+_v2h_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, _v2h_dict.keys())))
 
 # The US Kindle Paperwhite does not correctly display some vertical glyph forms. Remove the characters that
 # have problems from _h2v_dict
 _h2vkindle_dict = {'。':'︒', '：':'︓', '「':'﹁', '」':'﹂', '〈':'︿', '〉':'﹀', '『':'﹃', '』':'﹄', '《':'︽', '》':'︾',
                    '【':'︻', '（':'︵', '】':'︼', '）':'︶', '〔':'︹', '｛':'︷', '〕':'︺',
                    '｝':'︸', '［':'﹇', '］':'﹈', '—':'︱', '﹏':'︴', '，':'︐'}
+_h2vkindle_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, _h2vkindle_dict.keys())))
 
 _zh_re = re.compile('lang=\"zh-\w+\"|lang=\"zh\"', re.IGNORECASE)
 
@@ -192,12 +195,12 @@ class TradSimpChinese(Tool):
                 # Update punctuation based on text direction if needed
                 if criteria[8] != 0:
                     if criteria[7] == 1:
-                        cur_token[1] = multiple_replace(_v2h_dict, cur_token[1])
+                        cur_token[1] = multiple_replace(_v2h_dict_regex, _v2h_dict, cur_token[1])
                     elif criteria[7] == 2:
                         if criteria[8] == 1:
-                            cur_token[1] = multiple_replace(_h2v_dict, cur_token[1])
+                            cur_token[1] = multiple_replace(_h2v_dict_regex, _h2v_dict, cur_token[1])
                         else:
-                            cur_token[1] = multiple_replace(_h2vkindle_dict, cur_token[1])
+                            cur_token[1] = multiple_replace(_h2vkindle_dict_regex, _h2vkindle_dict, cur_token[1])
                 # Convert text if needed
                 if criteria[1] != 0:
                     result.append(self.converter.convert(cur_token[1]))
@@ -248,12 +251,12 @@ def replace_quotations(data, criteria):
 # Copyright 2001 Xavier Defrang
 # PSF (Python Software Foundation) license (GPL Compatible)
 # https://docs.python.org/3/license.html
-def multiple_replace(dict, text):
-  # Create a regular expression  from the dictionary keys
-  regex = re.compile("(%s)" % "|".join(map(re.escape, dict.keys())))
+def multiple_replace(orientation_regex, orientation_dict, text):
+#  # Create a regular expression  from the dictionary keys
+#  regex = re.compile("(%s)" % "|".join(map(re.escape, orientation_dict.keys())))
 
   # For each match, look-up corresponding value in dictionary
-  return regex.sub(lambda mo: dict[mo.string[mo.start():mo.end()]], text)
+  return orientation_regex.sub(lambda mo: orientation_dict[mo.string[mo.start():mo.end()]], text)
 
 def get_language_code(criteria):
     """
@@ -391,8 +394,10 @@ def set_flow_direction(container, language, criteria, changed_files, converter):
     # Open CSS and set layout direction in the body section
     if criteria[7] == 1:
         orientation = 'horizontal-tb'
+        break_rule = 'auto'
     if criteria[7] == 2:
         orientation = 'vertical-rl'
+        break_rule = 'normal'
     # Loop through all the files in the epub looking for CSS style sheets
     foundBody = False
     for name, mt in container.mime_map.iteritems():
@@ -407,13 +412,35 @@ def set_flow_direction(container, language, criteria, changed_files, converter):
                         foundBody = True
                         # Found a rule for the body; check if it has writing mode
                         # Check if -epub-writing-mode is set correctly
-                        if rule.style['-epub-writing-mode'] != orientation:
-                            rule.style['-epub-writing-mode'] = orientation
+                        if rule.style['writing-mode'] != orientation:
+                            rule.style['writing-mode'] = orientation
                             fileChanged = True
                             changed_files.append(name)
                             container.dirty(name)
-
-    # If no 'body' selector rule is found in any css file, add one to every css file
+                        if rule.style['-epub-writing-mode'] != orientation:
+                            rule.style['-epub-writing-mode'] = orientation
+                            if name not in changed_files:
+                                fileChanged = True
+                                changed_files.append(name)
+                                container.dirty(name)
+                        if rule.style['-webkit-writing-mode'] != orientation:
+                            rule.style['-webkit-writing-mode'] = orientation
+                            if name not in changed_files:
+                                fileChanged = True
+                                changed_files.append(name)
+                                container.dirty(name)
+                        if rule.style['line-break'] != break_rule:
+                            rule.style['line-break'] = break_rule
+                            if name not in changed_files:
+                                fileChanged = True
+                                changed_files.append(name)
+                                container.dirty(name)
+                        if rule.style['webkit-line-break'] != break_rule:
+                            rule.style['webkit-line-break'] = break_rule
+                            if name not in changed_files:
+                                fileChanged = True
+                                changed_files.append(name)
+                                container.dirty(name)    # If no 'body' selector rule is found in any css file, add one to every css file
     if not foundBody:
         for name, mt in container.mime_map.iteritems():
             if mt in OEB_STYLES:
@@ -421,7 +448,23 @@ def set_flow_direction(container, language, criteria, changed_files, converter):
                 sheet = container.parsed(name)
                 # Create a style rule for body.
                 styleEntry = css.CSSStyleDeclaration()
+                styleEntry['writing-mode'] = orientation
+                styleRule = css.CSSStyleRule(selectorText=u'body', style=styleEntry)
+                sheet.add(styleRule)
+                styleEntry = css.CSSStyleDeclaration()
                 styleEntry['-epub-writing-mode'] = orientation
+                styleRule = css.CSSStyleRule(selectorText=u'body', style=styleEntry)
+                sheet.add(styleRule)
+                styleEntry = css.CSSStyleDeclaration()
+                styleEntry['-webkit-writing-mode'] = orientation
+                styleRule = css.CSSStyleRule(selectorText=u'body', style=styleEntry)
+                sheet.add(styleRule)
+                styleEntry = css.CSSStyleDeclaration()
+                styleEntry['line-break'] = break_rule
+                styleRule = css.CSSStyleRule(selectorText=u'body', style=styleEntry)
+                sheet.add(styleRule)
+                styleEntry = css.CSSStyleDeclaration()
+                styleEntry['webkit-line-break'] = break_rule
                 styleRule = css.CSSStyleRule(selectorText=u'body', style=styleEntry)
                 sheet.add(styleRule)
                 fileChanged = True
@@ -502,12 +545,12 @@ def cli_convert_text(data, criteria, language, converter):
             # Update punctuation based on text direction if needed
             if criteria[8] != 0:
                 if criteria[7] == 1:
-                    cur_token[1] = multiple_replace(_v2h_dict, cur_token[1])
+                    cur_token[1] = multiple_replace(_v2h_dict_regex, _v2h_dict, cur_token[1])
                 elif criteria[7] == 2:
                     if criteria[8] == 1:
-                        cur_token[1] = multiple_replace(_h2v_dict, cur_token[1])
+                        cur_token[1] = multiple_replace(_h2v_dict_regex, _h2v_dict, cur_token[1])
                     else:
-                        cur_token[1] = multiple_replace(_h2vkindle_dict, cur_token[1])
+                        cur_token[1] = multiple_replace(_h2vkindle_dict_regex, _h2vkindle_dict, cur_token[1])
             # Convert text if needed
             if criteria[1] != 0:
                 result.append(converter.convert(cur_token[1]))
