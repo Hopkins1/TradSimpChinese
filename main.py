@@ -451,22 +451,10 @@ def set_flow_direction(container, language, criteria, changed_files, converter):
                 styleEntry['writing-mode'] = orientation
                 styleRule = css.CSSStyleRule(selectorText=u'body', style=styleEntry)
                 sheet.add(styleRule)
-                styleEntry = css.CSSStyleDeclaration()
-                styleEntry['-epub-writing-mode'] = orientation
-                styleRule = css.CSSStyleRule(selectorText=u'body', style=styleEntry)
-                sheet.add(styleRule)
-                styleEntry = css.CSSStyleDeclaration()
-                styleEntry['-webkit-writing-mode'] = orientation
-                styleRule = css.CSSStyleRule(selectorText=u'body', style=styleEntry)
-                sheet.add(styleRule)
-                styleEntry = css.CSSStyleDeclaration()
-                styleEntry['line-break'] = break_rule
-                styleRule = css.CSSStyleRule(selectorText=u'body', style=styleEntry)
-                sheet.add(styleRule)
-                styleEntry = css.CSSStyleDeclaration()
-                styleEntry['webkit-line-break'] = break_rule
-                styleRule = css.CSSStyleRule(selectorText=u'body', style=styleEntry)
-                sheet.add(styleRule)
+                styleRule.style['-epub-writing-mode'] = orientation
+                styleRule.style['-webkit-writing-mode'] = orientation
+                styleRule.style['line-break'] = break_rule
+                styleRule.style['webkit-line-break'] = break_rule
                 fileChanged = True
                 changed_files.append(name)
                 container.dirty(name)
