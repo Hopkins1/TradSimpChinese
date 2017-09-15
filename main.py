@@ -435,8 +435,8 @@ def set_flow_direction(container, language, criteria, changed_files, converter):
                                 fileChanged = True
                                 changed_files.append(name)
                                 container.dirty(name)
-                        if rule.style['webkit-line-break'] != break_rule:
-                            rule.style['webkit-line-break'] = break_rule
+                        if rule.style['-webkit-line-break'] != break_rule:
+                            rule.style['-webkit-line-break'] = break_rule
                             if name not in changed_files:
                                 fileChanged = True
                                 changed_files.append(name)
@@ -454,7 +454,7 @@ def set_flow_direction(container, language, criteria, changed_files, converter):
                 styleRule.style['-epub-writing-mode'] = orientation
                 styleRule.style['-webkit-writing-mode'] = orientation
                 styleRule.style['line-break'] = break_rule
-                styleRule.style['webkit-line-break'] = break_rule
+                styleRule.style['-webkit-line-break'] = break_rule
                 fileChanged = True
                 changed_files.append(name)
                 container.dirty(name)
