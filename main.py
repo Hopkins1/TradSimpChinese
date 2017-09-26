@@ -316,16 +316,17 @@ def set_metadata_toc(container, language, criteria, changed_files, converter):
                '//opf:metadata/dc:rights'];
     # Update the OPF metadata
     # The language and creator fields are special
-    # Only update the dc language if the original language was a Chinese type
-    items = container.opf_xpath('//opf:metadata/dc:language')
-    if len(items) > 0:
-        for item in items:
-            old_item = item.text
-            if re.search('zh-\w+|zh', item.text, flags=re.IGNORECASE) != None:
-                item.text = language
-            if item.text != old_item:
-                opfChanged = True
-    # Update the creator text and file-as attribute
+    # Only update the dc language if the original language was a Chinese type and epub format
+    if container.book_type == u'epub':
+        items = container.opf_xpath('//opf:metadata/dc:language')
+        if len(items) > 0:
+            for item in items:
+                old_item = item.text
+                if re.search('zh-\w+|zh', item.text, flags=re.IGNORECASE) != None:
+                    item.text = language
+                if item.text != old_item:
+                    opfChanged = True
+        # Update the creator text and file-as attribute
     items = container.opf_xpath('//opf:metadata/dc:creator')
     if len(items) > 0:
         for item in items:
@@ -368,6 +369,31 @@ def set_metadata_toc(container, language, criteria, changed_files, converter):
         changed_files.append(container.opf_name)
     return(tocChanged or opfChanged)
 
+
+def add_flow_direction_properties(rule, orientation_value, break_value):
+    rule_changed = False
+    if rule.style['writing-mode'] != orientation_value:
+        rule.style['writing-mode'] = orientation_value
+        rule_changed = True
+
+    if rule.style['-epub-writing-mode'] != orientation_value:
+        rule.style['-epub-writing-mode'] = orientation_value
+        rule_changed = True
+
+    if rule.style['-webkit-writing-mode'] != orientation_value:
+        rule.style['-webkit-writing-mode'] = orientation_value
+        rule_changed = True
+
+    if rule.style['line-break'] != break_value:
+        rule.style['line-break'] = break_value
+        rule_changed = True
+
+    if rule.style['-webkit-line-break'] != break_value:
+        rule.style['-webkit-line-break'] = break_value
+        rule_changed = True
+
+    return rule_changed
+
 def set_flow_direction(container, language, criteria, changed_files, converter):
     # Open OPF and set flow
     flow = 'default'
@@ -390,58 +416,80 @@ def set_flow_direction(container, language, criteria, changed_files, converter):
         container.dirty(container.opf_name)
         if container.opf_name not in changed_files:
             changed_files.append(container.opf_name)
-
     # Open CSS and set layout direction in the body section
     if criteria[7] == 1:
         orientation = 'horizontal-tb'
+        orientation_azw3 = 'horizontal-lr'
         break_rule = 'auto'
     if criteria[7] == 2:
         orientation = 'vertical-rl'
+        orientation_azw3 = 'vertical-rl'
         break_rule = 'normal'
-    # Loop through all the files in the epub looking for CSS style sheets
-    foundBody = False
+
+    if container.book_type == u'azw3':
+        items = container.opf_xpath('//opf:metadata/opf:meta')
+        found_name = False
+        if len(items) > 0:
+            for item in items:
+                if 'name' in item.attrib and 'content' in item.attrib:
+                    if item.attrib['name'] == 'primary-writing-mode':
+                        found_name = True
+                        if item.attrib['content'] != orientation_azw3:
+                            item.attrib['content'] = orientation_azw3
+                            fileChanged = True
+
+        if found_name == False:
+            #Create a meta tag with attributes
+            metadata = container.opf_xpath('//opf:metadata')[0]
+            item = metadata.makeelement('meta')
+            item.set('name', 'primary-writing-mode')
+            item.set('content', orientation_azw3)
+            container.insert_into_xml(metadata, item)
+            fileChanged = True
+
+        if fileChanged:
+            container.dirty(container.opf_name)
+            if container.opf_name not in changed_files:
+                changed_files.append(container.opf_name)
+
+    addedCSSRules = False
+
+    # Loop through all the files in the ebook looking for CSS style sheets
+    # Update the CSS .calibre class if this was a Calibre converted file
     for name, mt in container.mime_map.iteritems():
         if mt in OEB_STYLES:
             # Get the sheet as a python cssutils CSSStyleSheet object
             sheet = container.parsed(name)
-            # Look through all the rules and find any with a 'body' selector
+            # If this is a Calibre created ebook, add CSS rules to .calibre class
             rules = (rule for rule in sheet if rule.type == rule.STYLE_RULE)
             for rule in rules:
                 for selector in rule.selectorList:
-                    if selector.selectorText == u'body':
-                        foundBody = True
-                        # Found a rule for the body; check if it has writing mode
-                        # Check if -epub-writing-mode is set correctly
-                        if rule.style['writing-mode'] != orientation:
-                            rule.style['writing-mode'] = orientation
+                    if selector.selectorText == u'.calibre':
+                        addedCSSRules = True
+                        if add_flow_direction_properties(rule, orientation, break_rule):
                             fileChanged = True
                             changed_files.append(name)
                             container.dirty(name)
-                        if rule.style['-epub-writing-mode'] != orientation:
-                            rule.style['-epub-writing-mode'] = orientation
-                            if name not in changed_files:
+                        break
+
+    if not addedCSSRules:
+        for name, mt in container.mime_map.iteritems():
+            if mt in OEB_STYLES:
+                # Get the sheet as a python cssutils CSSStyleSheet object
+                sheet = container.parsed(name)
+                # Look through all the rules and find any with a 'body' selector
+                rules = (rule for rule in sheet if rule.type == rule.STYLE_RULE)
+                for rule in rules:
+                    for selector in rule.selectorList:
+                        if selector.selectorText == u'body':
+                            addedCSSRules = True
+                            if add_flow_direction_properties(rule, orientation, break_rule):
                                 fileChanged = True
                                 changed_files.append(name)
                                 container.dirty(name)
-                        if rule.style['-webkit-writing-mode'] != orientation:
-                            rule.style['-webkit-writing-mode'] = orientation
-                            if name not in changed_files:
-                                fileChanged = True
-                                changed_files.append(name)
-                                container.dirty(name)
-                        if rule.style['line-break'] != break_rule:
-                            rule.style['line-break'] = break_rule
-                            if name not in changed_files:
-                                fileChanged = True
-                                changed_files.append(name)
-                                container.dirty(name)
-                        if rule.style['-webkit-line-break'] != break_rule:
-                            rule.style['-webkit-line-break'] = break_rule
-                            if name not in changed_files:
-                                fileChanged = True
-                                changed_files.append(name)
-                                container.dirty(name)    # If no 'body' selector rule is found in any css file, add one to every css file
-    if not foundBody:
+
+    # If no 'body' selector rule is found in any css file, add one to every css file
+    if not addedCSSRules:
         for name, mt in container.mime_map.iteritems():
             if mt in OEB_STYLES:
                 # Get the sheet as a python cssutils CSSStyleSheet object
@@ -552,8 +600,8 @@ def cli_get_criteria(args):
     #        process_single_file(BOOL), output_mode(INT), input_locale(INT),
     #        output_locale(INT), use_target_phrases(BOOL), quote_type(INT)),
     #        smart_quotes(BOOL), text_direction(INT)
-    #   process_single_file:    True - In editor only process a selected file in epub
-    #                           False - Process all files in epub
+    #   process_single_file:    True - In editor only process a selected file in ebook
+    #                           False - Process all files in ebook
     #   output_mode:    0 = no change
     #                   1 = traditional->simplified
     #                   2 = simplified->traditional
@@ -726,20 +774,20 @@ def main(argv, plugin_version, usage=None):
     parser = argparse.ArgumentParser(description=_('Convert Chinese characters between traditional/simplified types and/or change text style.\nPlugin Version: ') +
                                      str(plugin_version[0]) + '.' + str(plugin_version[1]) + '.' + str(plugin_version[2]))
     parser.add_argument('-il', '--input-locale', dest='orig_opt', default='cn',
-                        help=_('Set to the epub origin locale if known (Default: cn)'), choices=list_of_locales)
+                        help=_('Set to the ebook origin locale if known (Default: cn)'), choices=list_of_locales)
     parser.add_argument('-ol', '--output-locale', dest='dest_opt', default='cn',
-                        help=_('Set to the epub target locale (Default: cn)'), choices=list_of_locales)
+                        help=_('Set to the ebook target locale (Default: cn)'), choices=list_of_locales)
     parser.add_argument('-d', '--direction', dest='direction_opt', default='none',
-                        help=_('Set to the epub conversion direction (Default: none)'), choices=list_of_directions)
+                        help=_('Set to the ebook conversion direction (Default: none)'), choices=list_of_directions)
     parser.add_argument('-p', '--phrase_convert', dest='phrase_opt', help=_('Convert phrases to target locale versions (Default: False)'),
                         action='store_true')
 
     parser.add_argument('-qt', '--quotation-type', dest='quote_type_opt', default='no_change',
-                        help=_('Set to the epub origin locale if known (Default: no_change)'), choices=quotation_types)
+                        help=_('Set to the ebook origin locale if known (Default: no_change)'), choices=quotation_types)
     parser.add_argument('-sq', '--smart_quotes', dest='smart_quotes_opt', help=_('Use smart quotes if applicable (Default: False)'),
                         action='store_true')
     parser.add_argument('-td', '--text-direction', dest='text_dir_opt', default='no_change',
-                        help=_('Set to the epub origin locale if known (Default: no_change)'), choices=text_directions)
+                        help=_('Set to the ebook origin locale if known (Default: no_change)'), choices=text_directions)
     parser.add_argument('-tdo', '--text-device-optimize', dest='optimization_opt', help=_('Optimize text for device (Default: none)'),
                         choices=optimization)
 
@@ -750,19 +798,19 @@ def main(argv, plugin_version, usage=None):
     parser.add_argument('-q', '--quiet', dest='quiet_opt', help=_('Do not print anything, ignore warnings - this option overides the -s option (Default: False)'),
                         action='store_true')
     parser.add_argument('-od', '--output-dir', dest='outdir_opt',
-                        help=_('Set to the epub output file directory (Default: overwrite existing epub file)'))
+                        help=_('Set to the ebook output file directory (Default: overwrite existing ebook file)'))
     parser.add_argument('-a', '--append_suffix', dest='append_suffix_opt', default='',
                         help=_('Append a suffix to the output file basename (Default: '')'))
     parser.add_argument('-f', '--force', dest='force_opt', help=_('Force processing by ignoring warnings (e.g. allow overwriting files with no prompt)'),
                         action='store_true')
     parser.add_argument('-s', '--show', dest='show_opt', help=_('Show the settings based on user cmdline options and exit (Default: False)'),
                         action='store_true')
-    parser.add_argument('epubFiles', metavar='epub-filepath', nargs='+',
-                        help=_('One or more EPUB filepaths - UNIX style wildcards accepted'))
+    parser.add_argument('ebookFiles', metavar='ebook-filepath', nargs='+',
+                        help=_('One or more epub and/or azw3 ebook filepaths - UNIX style wildcards accepted'))
 
     args = parser.parse_args(argv)
     
-    #Pull out the list of epubs
+    #Pull out the list of ebooks
     file_set = set()
 
     if args.outdir_opt == None:
@@ -787,7 +835,7 @@ def main(argv, plugin_version, usage=None):
                     print(_('Output directory not a directory'))
                 return(1)
         
-    for filespec in args.epubFiles:
+    for filespec in args.ebookFiles:
         #Get a list of files
         file_list = glob.glob(filespec)
         for filename in file_list:
@@ -796,10 +844,10 @@ def main(argv, plugin_version, usage=None):
                 if not args.quiet_opt:
                     print(_('Discarding - Not a file: ') + filename)
                 continue
-            #Discard any files not ending in epub
-            if not filename.lower().endswith(".epub"):
+            #Discard any files not ending in ebook
+            if not filename.lower().endswith(".epub") and not filename.lower().endswith(".azw3"):
                 if not args.quiet_opt:
-                    print(_('Discarding - Does not end in \'.epub\': ') + filename)
+                    print(_('Discarding - Does not end in \'.epub\' or \'.azw3\': ') + filename)
                 continue
             #Add filename to set
             file_set.add(filename)
@@ -831,7 +879,7 @@ def main(argv, plugin_version, usage=None):
 
     if (args.outdir_opt == None) and args.append_suffix_opt == '':
         if not args.force_opt:
-            response = str(raw_input(_('No output directory specified, original epub file will be overwritten. Is this OK? [N] or Y: '))).lower().strip()
+            response = str(raw_input(_('No output directory specified, original ebook file will be overwritten. Is this OK? [N] or Y: '))).lower().strip()
             if (len(response)) > 0 and (response[0] == 'y'):
                 pass
             else:
@@ -840,14 +888,14 @@ def main(argv, plugin_version, usage=None):
 
     if len(file_set) == 0:
         if not args.quiet_opt:
-            print(_('No epub files specified!'))
+            print(_('No ebook files specified!'))
             return(0)
 
     #Loop through the filenames
     for filename in file_set:
         #Print out the current operation
         if not args.quiet_opt:
-            print(_('Converting epub: ') + os.path.basename(filename + ' .... '), end="")
+            print(_('Converting ebook: ') + os.path.basename(filename + ' .... '), end="")
         #Create a Container object from the file
         container = get_container(filename)
         #Update the container
@@ -860,7 +908,7 @@ def main(argv, plugin_version, usage=None):
         else:
             if not args.quiet_opt:
                 print(_('Unchanged'))
-        #if changes, save the container as an epub file with a name based on the conversion criteria
+        #if changes, save the container as an ebook file with a name based on the conversion criteria
         if len(changed_files) > 0:
             if (args.outdir_opt == None) and (args.append_suffix_opt == ''):
                 if not args.quiet_opt:
@@ -872,7 +920,7 @@ def main(argv, plugin_version, usage=None):
                 if not args.test_opt:
                     container.commit()
             else:
-                #Create absolute path to filename. Earlier code already verified that it ends in '.epub'
+                #Create absolute path to filename. Earlier code already verified that it ends in '.epub' or '.azw3'
                 file_path_portion, file_name_portion = os.path.split(filename)
                 adjusted_file_name = file_name_portion[:-5] + args.append_suffix_opt + file_name_portion[-5:]
                 if args.outdir_opt != None:
