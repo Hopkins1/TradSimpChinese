@@ -32,7 +32,7 @@ useful when dealing with Japanese ebooks.
 
 3) Python Software Foundation code (GPL Compatible)
 
-4) The plugin also uses python code from DiapDealer's Editing Toolbag (https://www.mobileread.com/forums/sho...d.php?t=251365). Licenese: GPL3
+4) The plugin also uses python code from DiapDealer's Editing Toolbag (https://github.com/dougmassay/toolbag-calibre-plugin). Licenese: GPL3
 
 
 Support Link
@@ -43,7 +43,7 @@ Support Link
 
 Building
 ========
-TBD
+No building necessary other than wrapping the entire directory in a zip file.
 
 
 Contributing / Modifying
