@@ -659,7 +659,7 @@ def cli_get_criteria(args):
 
     if args.optimization_opt == 'r':
         optimization = 1
-    elif args.text_dir_opt == 'k':
+    elif args.optimization_opt == 'k':
         optimization = 2
     
     criteria = (
