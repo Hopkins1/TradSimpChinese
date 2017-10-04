@@ -907,7 +907,7 @@ def main(argv, plugin_version, usage=None):
                     print('   ' + changed_file_name)
         else:
             if not args.quiet_opt:
-                print(_('Unchanged'))
+                print(_('Unchanged - No file written'))
         #if changes, save the container as an ebook file with a name based on the conversion criteria
         if len(changed_files) > 0:
             if (args.outdir_opt == None) and (args.append_suffix_opt == ''):
