@@ -49,6 +49,7 @@ class ConversionDialog(Dialog):
         self.setLayout(layout)
 
         #Create a scroll area for the top part of the dialog
+        self.scrollArea = QScrollArea(self)
         self.scrollArea.setWidgetResizable(True)
 
         # Create widget for all the contents of the dialog except the OK and Cancel buttons
