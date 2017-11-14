@@ -9,11 +9,11 @@ import os
 try:
     from PyQt5.Qt import (Qt, QVBoxLayout, QLabel, QComboBox, QApplication, QSizePolicy,
                       QGroupBox, QButtonGroup, QRadioButton, QDialogButtonBox, QHBoxLayout,
-                      QProgressDialog, QSize, QDialog, QCheckBox, QSpinBox)
+                      QProgressDialog, QSize, QDialog, QCheckBox, QSpinBox, QScrollArea, QWidget)
 except ImportError:
     from PyQt4.Qt import (Qt, QVBoxLayout, QLabel, QComboBox, QApplication, QSizePolicy,
                       QGroupBox, QButtonGroup, QRadioButton, QDialogButtonBox, QHBoxLayout,
-                      QProgressDialog, QSize, QDialog, QCheckBox, QSpinBox)
+                      QProgressDialog, QSize, QDialog, QCheckBox, QSpinBox, QScrollArea, QWidget)
 
 from calibre.utils.config import config_dir
 
@@ -44,11 +44,23 @@ class ConversionDialog(Dialog):
         self.quote_for_trad_target = _("Update quotes: ＂＂,＇＇ -> 「」,『』")
         self.quote_for_simp_target = _("Update quotes: 「」,『』 -> ＂＂,＇＇")
 
+        # Create layout for entire dialog
         layout = QVBoxLayout(self)
         self.setLayout(layout)
 
+        #Create a scroll area for the top part of the dialog
+        self.scrollArea.setWidgetResizable(True)
+
+        # Create widget for all the contents of the dialog except the OK and Cancel buttons
+        self.scrollContentWidget = QWidget(self.scrollArea)
+        self.scrollArea.setWidget(self.scrollContentWidget)
+        widgetLayout = QVBoxLayout(self.scrollContentWidget)
+
+        # Add scrollArea to dialog
+        layout.addWidget(self.scrollArea)
+        
         self.operation_group_box = QGroupBox(_('Conversion Direction'))
-        layout.addWidget(self.operation_group_box)
+        widgetLayout.addWidget(self.operation_group_box)
         operation_group_box_layout = QVBoxLayout()
         self.operation_group_box.setLayout(operation_group_box_layout)
 
@@ -72,7 +84,7 @@ class ConversionDialog(Dialog):
 
 
         self.style_group_box = QGroupBox(_('Language Styles'))
-        layout.addWidget(self.style_group_box)
+        widgetLayout.addWidget(self.style_group_box)
         style_group_box_layout = QVBoxLayout()
         self.style_group_box.setLayout(style_group_box_layout)
 
@@ -102,7 +114,7 @@ class ConversionDialog(Dialog):
         self.use_target_phrases.stateChanged.connect(self.update_gui)
 
         self.quotation_group_box = QGroupBox(_('Quotation Marks'))
-        layout.addWidget(self.quotation_group_box)
+        widgetLayout.addWidget(self.quotation_group_box)
         quotation_group_box_layout = QVBoxLayout()
         self.quotation_group_box.setLayout(quotation_group_box_layout)
 
@@ -126,7 +138,7 @@ class ConversionDialog(Dialog):
 
 
         self.other_group_box = QGroupBox(_('Other Changes'))
-        layout.addWidget(self.other_group_box)
+        widgetLayout.addWidget(self.other_group_box)
         other_group_box_layout = QVBoxLayout()
         self.other_group_box.setLayout(other_group_box_layout)
 
@@ -166,7 +178,7 @@ class ConversionDialog(Dialog):
         source_group.addButton(self.book_source_button)
         self.source_group_box = QGroupBox(_('Source'))
         if not self.force_entire_book:
-            layout.addWidget(self.source_group_box)
+            widgetLayout.addWidget(self.source_group_box)
             source_group_box_layout = QVBoxLayout()
             self.source_group_box.setLayout(source_group_box_layout)
             source_group_box_layout.addWidget(self.file_source_button)
