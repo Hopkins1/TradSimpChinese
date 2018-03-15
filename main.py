@@ -783,7 +783,7 @@ def main(argv, plugin_version, usage=None):
                         action='store_true')
 
     parser.add_argument('-qt', '--quotation-type', dest='quote_type_opt', default='no_change',
-                        help=_('Set to the ebook origin locale if known (Default: no_change)'), choices=quotation_types)
+                        help=_('Set to Western or East Asian (Default: no_change)'), choices=quotation_types)
     parser.add_argument('-sq', '--smart_quotes', dest='smart_quotes_opt', help=_('Use smart quotes if applicable (Default: False)'),
                         action='store_true')
     parser.add_argument('-td', '--text-direction', dest='text_dir_opt', default='no_change',
