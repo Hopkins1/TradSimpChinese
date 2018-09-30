@@ -321,7 +321,7 @@ class ConversionDialog(Dialog):
         plugin_prefs.defaults['use_html_file'] = True
         plugin_prefs.defaults['simp_to_trad'] = False
         plugin_prefs.defaults['trad_to_trad'] = False
-        plugin_prefs.defaults['use_entire_book'] = False
+        plugin_prefs.defaults['use_entire_book'] = True
         plugin_prefs.defaults['use_target_phrases'] = True
         plugin_prefs.defaults['quote_no_conversion'] = True
         plugin_prefs.defaults['quote_trad_to_simp'] = False
