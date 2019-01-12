@@ -7,7 +7,7 @@ __copyright__ = '2016, Hopkins'
 
 import re, os.path
 from itertools import tee, islice, izip_longest
-from cssutils import  css, stylesheets
+from css_parser import  css, stylesheets
 
 try:
     from PyQt5.Qt import Qt, QAction, QDialog, QApplication, QCursor
@@ -61,9 +61,18 @@ _h2vkindle_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, _h2vkindle_d
 
 _zh_re = re.compile('lang=\"zh-\w+\"|lang=\"zh\"', re.IGNORECASE)
 
+# Calibre function passed into converter for getting resource files
+def get_resource_file(file_type, file_name):
+    if file_type == 'config':
+        return get_resources('resources/opencc_python/config/' + file_name)
+    elif file_type == 'dictionary':
+        return get_resources('resources/opencc_python/dictionary/' + file_name)
+    else:
+        raise ValueError('conversion value incorrect')
+
 class TradSimpChinese(Tool):
     from calibre_plugins.chinese_text.resources.opencc_python.opencc import OpenCC
-    converter = OpenCC()
+    converter = OpenCC(get_resource_file)
 
     name = 'trad-simp-chinese'
 
@@ -458,7 +467,7 @@ def set_flow_direction(container, language, criteria, changed_files, converter):
     # Update the CSS .calibre class if this was a Calibre converted file
     for name, mt in container.mime_map.iteritems():
         if mt in OEB_STYLES:
-            # Get the sheet as a python cssutils CSSStyleSheet object
+            # Get the sheet as a python css_parser CSSStyleSheet object
             sheet = container.parsed(name)
             # If this is a Calibre created ebook, add CSS rules to .calibre class
             rules = (rule for rule in sheet if rule.type == rule.STYLE_RULE)
@@ -475,7 +484,7 @@ def set_flow_direction(container, language, criteria, changed_files, converter):
     if not addedCSSRules:
         for name, mt in container.mime_map.iteritems():
             if mt in OEB_STYLES:
-                # Get the sheet as a python cssutils CSSStyleSheet object
+                # Get the sheet as a python css_parser CSSStyleSheet object
                 sheet = container.parsed(name)
                 # Look through all the rules and find any with a 'body' selector
                 rules = (rule for rule in sheet if rule.type == rule.STYLE_RULE)
@@ -492,7 +501,7 @@ def set_flow_direction(container, language, criteria, changed_files, converter):
     if not addedCSSRules:
         for name, mt in container.mime_map.iteritems():
             if mt in OEB_STYLES:
-                # Get the sheet as a python cssutils CSSStyleSheet object
+                # Get the sheet as a python css_parser CSSStyleSheet object
                 sheet = container.parsed(name)
                 # Create a style rule for body.
                 styleEntry = css.CSSStyleDeclaration()
@@ -762,7 +771,7 @@ def main(argv, plugin_version, usage=None):
     import argparse
     import glob
 
-    converter = OpenCC()
+    converter = OpenCC(get_resource_file)
     criteria = None
 
     list_of_locales = ['cn', 'hk', 'tw']

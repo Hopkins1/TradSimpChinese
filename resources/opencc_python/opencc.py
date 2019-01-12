@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import (unicode_literals, division, absolute_import,
-                        print_function)
+from __future__ import (unicode_literals)
 ##########################################################
 # Author: Yichen Huang (Eugene)
 # GitHub: https://github.com/yichen0831/opencc-python
@@ -22,28 +21,23 @@ from __future__ import (unicode_literals, division, absolute_import,
 # - Use "from __future__ import" to allow support for both Python 2.7
 #   and Python >3.2
 ##########################################################
-##########################################################
-# This file was modified for use in Calibre.
-# It was originally licensed under Apache 2.0
-# It includes calls into the Calibre API for plugins, and
-# as such the modified code takes on a new license.
-# License: GPL3
-# June, 2016
-##########################################################
 
 import io
 import os
 import json
 import re
 
-CONFIG_DIR = 'resources/opencc_python/config'
-DICT_DIR = 'resources/opencc_python/dictionary'
+CONFIG_DIR = 'config'
+DICT_DIR = 'dictionary'
 
 
 class OpenCC:
-    def __init__(self, conversion=None):
+    def __init__(self, resource_getter, conversion=None):
         """
         init OpenCC
+        :param resource_getter: function that takes 2 parameters
+         'config' or 'dictionary', and a corresponding file name. It returns
+         bytes from the selected file.
         :param conversion: the conversion of usage, options are
          'hk2s', 's2hk', 's2t', 's2tw', 's2twp', 't2hk', 't2s', 't2tw', 'tw2s', and 'tw2sp'
          check the json file names in config directory
@@ -55,6 +49,7 @@ class OpenCC:
         self._dict_chain = list()
         self._dict_chain_data = list()
         self.dict_cache = dict()
+        self.resource_getter = resource_getter
         # List of sentence separators from OpenCC PhraseExtract.cpp. None of these separators are allowed as
         # part of a dictionary entry
         self.split_chars_re = re.compile(
@@ -120,7 +115,7 @@ class OpenCC:
 
         self._dict_chain = []
         config = self.conversion + '.json'
-        bytes = get_resources(CONFIG_DIR + '/' + config)
+        bytes = self.resource_getter(CONFIG_DIR, config)
         if bytes is not None:
             setting_json = json.loads(bytes.decode("utf-8"))
         else:
@@ -145,7 +140,7 @@ class OpenCC:
                 if not item in self.dict_cache:
                     map_dict = {}
                     max_len = 1
-                    bytes = get_resources(item)
+                    bytes = self.resource_getter(DICT_DIR, item)
                     if bytes is not None:
                         converted_data = bytes.decode("utf-8")
                         converted_data_list = converted_data.splitlines()
@@ -178,7 +173,7 @@ class OpenCC:
             dict_chain.append(chain)
         elif dict_dict.get('type') == 'txt':
             filename = dict_dict.get('file')
-            dict_file = DICT_DIR + '/' + filename
+            dict_file = filename
             dict_chain.append(dict_file)
 
     def set_conversion(self, conversion):
@@ -212,9 +207,8 @@ class StringTree:
         right against test_dict. If an entry is found, place the remaining
         string portion on the left and right into sub-trees and recurively
         convert each.
-
         :param test_dict: a tuple of the max key length and dict currently being
-                          applied againt the string
+                          applied against the string
         :return: None
         """
         if self.matched == True:
