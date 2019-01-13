@@ -20,7 +20,7 @@ class ChineseTextPlugin(EditBookToolPlugin):
     author = PLUGIN_AUTHORS
     supported_platforms = ['windows', 'osx', 'linux']
     description = PLUGIN_DESCRIPTION
-    minimum_calibre_version = (2, 55, 0)
+    minimum_calibre_version = (3, 37, 0)
 
     def cli_main(self,argv):
         #Typical Usage: calibre-debug --run-plugin "Chinese Text Conversion" -- -h
