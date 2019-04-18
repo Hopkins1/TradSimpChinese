@@ -363,10 +363,11 @@ def set_metadata_toc(container, language, criteria, changed_files, converter):
     # language automatically from the OPF file modified earlier
     book_toc = get_toc(container)
     for item in book_toc.iterdescendants():
-        old_title = item.title
-        item.title = converter.convert(item.title)
-        if old_title != item.title:
-            tocChanged = True
+        if(item.title != None):
+            old_title = item.title
+            item.title = converter.convert(item.title)
+            if old_title != item.title:
+                tocChanged = True
 
     # Update the files with the changes
     if tocChanged:
