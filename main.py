@@ -42,10 +42,10 @@ https://en.wikipedia.org/wiki/Debate_on_traditional_and_simplified_Chinese_chara
 '''
 
 # Horizontal full width characters to their vertical presentation forms lookup
-_h2v_dict = {'。':'︒', '、':'︑', '；':'︔', '：':'︓', '！':'︕', '？':'︖', '「':'﹁', '」':'﹂', '〈':'︿', '〉':'﹀',
+_h2v_dict = {'「':'﹁', '」':'﹂', '〈':'︿', '〉':'﹀',
         '『':'﹃', '』':'﹄', '《':'︽', '》':'︾', '【':'︻', '（':'︵', '】':'︼', '）':'︶','〖': '︗', '〗':'︘',
         '〔':'︹', '｛':'︷', '〕':'︺', '｝':'︸', '［':'﹇', '］':'﹈', '…':'︙', '‥':'︰', '—':'︱', '＿':'︳',
-        '﹏':'︴', '，':'︐'}
+        '﹏':'︴', '‘':'﹃', '’':'﹄'}
 _h2v_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, _h2v_dict.keys())))
 
 # Vertical full width characters to their Horizontal presentation forms lookup
@@ -54,9 +54,9 @@ _v2h_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, _v2h_dict.keys()))
 
 # The US Kindle Paperwhite does not correctly display some vertical glyph forms. Remove the characters that
 # have problems from _h2v_dict
-_h2vkindle_dict = {'。':'︒', '：':'︓', '「':'﹁', '」':'﹂', '〈':'︿', '〉':'﹀', '『':'﹃', '』':'﹄', '《':'︽', '》':'︾',
+_h2vkindle_dict = {'「':'﹁', '」':'﹂', '〈':'︿', '〉':'﹀', '『':'﹃', '』':'﹄', '《':'︽', '》':'︾',
                    '【':'︻', '（':'︵', '】':'︼', '）':'︶', '〔':'︹', '｛':'︷', '〕':'︺',
-                   '｝':'︸', '［':'﹇', '］':'﹈', '—':'︱', '﹏':'︴', '，':'︐'}
+                   '｝':'︸', '［':'﹇', '］':'﹈', '—':'︱', '﹏':'︴', '‘':'﹃', '’':'﹄'}
 _h2vkindle_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, _h2vkindle_dict.keys())))
 
 _zh_re = re.compile('lang=\"zh-\w+\"|lang=\"zh\"', re.IGNORECASE)
