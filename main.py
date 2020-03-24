@@ -6,7 +6,6 @@ __license__ = 'GPL 3'
 __copyright__ = '2016, Hopkins'
 
 import re, os.path
-from itertools import tee, islice, izip_longest
 from css_parser import  css, stylesheets
 
 try:
@@ -49,7 +48,7 @@ _h2v_dict = {'「':'﹁', '」':'﹂', '〈':'︿', '〉':'﹀',
 _h2v_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, _h2v_dict.keys())))
 
 # Vertical full width characters to their Horizontal presentation forms lookup
-_v2h_dict = {v: k for k, v in _h2v_dict.iteritems()}
+_v2h_dict = {v: k for k, v in _h2v_dict.items()}
 _v2h_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, _v2h_dict.keys())))
 
 # The US Kindle Paperwhite does not correctly display some vertical glyph forms. Remove the characters that
@@ -165,7 +164,7 @@ class TradSimpChinese(Tool):
             if htmlstr != data:
                 self.filesChanged = True
                 self.changed_files.append(name)
-                container.open(name, 'wb').write(htmlstr)
+                container.open(name, 'w').write(htmlstr)
 
         else:
             # Cover the entire book
@@ -466,7 +465,7 @@ def set_flow_direction(container, language, criteria, changed_files, converter):
 
     # Loop through all the files in the ebook looking for CSS style sheets
     # Update the CSS .calibre class if this was a Calibre converted file
-    for name, mt in container.mime_map.iteritems():
+    for name, mt in container.mime_map.items():
         if mt in OEB_STYLES:
             # Get the sheet as a python css_parser CSSStyleSheet object
             sheet = container.parsed(name)
@@ -483,7 +482,7 @@ def set_flow_direction(container, language, criteria, changed_files, converter):
                         break
 
     if not addedCSSRules:
-        for name, mt in container.mime_map.iteritems():
+        for name, mt in container.mime_map.items():
             if mt in OEB_STYLES:
                 # Get the sheet as a python css_parser CSSStyleSheet object
                 sheet = container.parsed(name)
@@ -500,7 +499,7 @@ def set_flow_direction(container, language, criteria, changed_files, converter):
 
     # If no 'body' selector rule is found in any css file, add one to every css file
     if not addedCSSRules:
-        for name, mt in container.mime_map.iteritems():
+        for name, mt in container.mime_map.items():
             if mt in OEB_STYLES:
                 # Get the sheet as a python css_parser CSSStyleSheet object
                 sheet = container.parsed(name)
@@ -679,7 +678,6 @@ def cli_get_criteria(args):
     return criteria
 
 def cli_process_files(criteria, container, converter):
-    from hashlib import md5
     lang = get_language_code(criteria)
 
     # Cover the entire book
@@ -697,12 +695,10 @@ def cli_process_files(criteria, container, converter):
     clean = True
     for name in file_list:
         data = container.raw_data(name)
-        orig_hash = md5(data).digest()
         htmlstr = cli_convert_text(data, criteria, lang, converter)
-        new_hash = md5(htmlstr).digest()
-        if new_hash != orig_hash:
+        if htmlstr != data:
             container.dirty(name)
-            container.open(name, 'wb').write(htmlstr)
+            container.open(name, 'w').write(htmlstr)
             changed_files.append(name)
             clean = False
 
