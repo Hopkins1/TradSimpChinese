@@ -4,21 +4,20 @@ from __future__ import (unicode_literals, division, absolute_import,
 
 __license__   = 'GPL v3'
 
-import os
+import os, re
 
 try:
     from PyQt5.Qt import (Qt, QVBoxLayout, QLabel, QComboBox, QApplication, QSizePolicy,
                       QGroupBox, QButtonGroup, QRadioButton, QDialogButtonBox, QHBoxLayout,
-                      QProgressDialog, QSize, QDialog, QCheckBox, QSpinBox, QScrollArea, QWidget)
+                      QProgressDialog, QSize, QDialog, QCheckBox, QSpinBox, QScrollArea, QWidget, QPushButton)
 except ImportError:
     from PyQt4.Qt import (Qt, QVBoxLayout, QLabel, QComboBox, QApplication, QSizePolicy,
                       QGroupBox, QButtonGroup, QRadioButton, QDialogButtonBox, QHBoxLayout,
-                      QProgressDialog, QSize, QDialog, QCheckBox, QSpinBox, QScrollArea, QWidget)
+                      QProgressDialog, QSize, QDialog, QCheckBox, QSpinBox, QScrollArea, QWidget, QPushButton)
 
 from calibre.utils.config import config_dir
 
 from calibre.gui2.tweak_book.widgets import Dialog
-from calibre_plugins.chinese_text.__init__ import (PLUGIN_NAME, PLUGIN_SAFE_NAME)
 
 '''
 ConversionDialog
@@ -26,23 +25,42 @@ The conversion dialog asks/displays the following:
     -Which direction of conversion is desired (i.e. Traditional->Simplified, Simplified->Traditional, or Traditional->Traditional)
     -If converting from Traditional, what country style is the source of the text (Hong Kong, Mainland, or Taiwan)
     -If converting to Traditional, what country style is desired (Hong Kong, Mainland, or Taiwan)
-    -What text should be converted (the currently selected file or the entire book)
+    -What text should be converted (the currently entire book, current file or selected text)
 
 The chosen settings are saved between program starts.
 
 Note: This code is based on the Calibre plugin Diap's Editing Toolbag
 '''
+
+
 class ConversionDialog(Dialog):
-    def __init__(self, parent, force_entire_book=False):
-        self.prefs = self.prefsPrep()
+    def __init__(self, parent, prefs, punc_dict, default_omitted_puncuation, force_entire_book=False):
+        self.prefs = prefs
         self.parent = parent
         self.force_entire_book = force_entire_book
-        self.criteria = None
         Dialog.__init__(self, _('Chinese Conversion'), 'chinese_conversion_dialog', parent)
+        self.punctuation_dialog = PuncuationDialog(self.parent, self.prefs, punc_dict, default_omitted_puncuation)
 
     def setup_ui(self):
-        self.quote_for_trad_target = _("Update quotes: ＂＂,＇＇ -> 「」,『』")
-        self.quote_for_simp_target = _("Update quotes: 「」,『』 -> ＂＂,＇＇")
+
+##        print('Dialog preferences')
+##        print(self.prefs['input_source'])           # 0=whole book, 1=current file, 2=selected text
+##
+##        print(self.prefs['conversion_type'])        # 0=No change, 1=trad->simp, 2=simp->trad, 3=trad->trad
+##        print(self.prefs['input_locale'])           # 0=Mainland, 1=Hong Kong, 2=Taiwan
+##        print(self.prefs['output_locale'])          # 0=Mainland, 1=Hong Kong, 2=Taiwan
+##        print(self.prefs['use_target_phrases'])     # True/False
+##
+##        print(self.prefs['quotation_type'])         # 0=No change, 1=Western, 2=East Asian
+##
+##        print(self.prefs['output_orientation'])     # 0=No change, 1=Horizontal, 2=Vertical
+##
+##        print(self.prefs['punc_omits'])             # Horizontal mark string in horizontal/vertical
+##                                                    # dictionary pairs that is NOT to be used. No
+##                                                    # space between marks in string.
+
+        self.quote_for_trad_target = _("Update quotes: “ ”,‘ ’ -> 「 」,『 』")
+        self.quote_for_simp_target = _("Update quotes: 「 」,『 』 -> “ ”,‘ ’")
 
         # Create layout for entire dialog
         layout = QVBoxLayout(self)
@@ -132,11 +150,6 @@ class ConversionDialog(Dialog):
         self.quotation_no_conversion_button.toggled.connect(self.update_gui)
         self.quotation_trad_to_simp_button.toggled.connect(self.update_gui)
         self.quotation_simp_to_trad_button.toggled.connect(self.update_gui)
-        self.use_smart_quotes = QCheckBox("""Use curved 'Smart" quotes if applicable""")
-        self.use_smart_quotes.setToolTip(_('Use smart curved half-width quotes rather than straight full-width quotes'))
-        quotation_group_box_layout.addWidget(self.use_smart_quotes)
-        self.use_smart_quotes.stateChanged.connect(self.update_gui)
-
 
         self.other_group_box = QGroupBox(_('Other Changes'))
         widgetLayout.addWidget(self.other_group_box)
@@ -153,86 +166,115 @@ class ConversionDialog(Dialog):
         self.text_dir_combo.setToolTip(_('Select the desired text orientation'))
         self.text_dir_combo.currentIndexChanged.connect(self.update_gui)
 
+        punctuation_layout = QHBoxLayout()
+        other_group_box_layout.addLayout(punctuation_layout)
+        self.update_punctuation = QCheckBox(_('Update punctuation'))
+        punctuation_layout.addWidget(self.update_punctuation)
+        self.update_punctuation.stateChanged.connect(self.update_gui)
+        self.punc_settings_btn = QPushButton()
+        self.punc_settings_btn.setText("Settings...")
 
-        self.optimization_group_box = QGroupBox(_('Reader Device Optimization'))
-        other_group_box_layout.addWidget(self.optimization_group_box)
-        optimization_group_box_layout = QVBoxLayout()
-        self.optimization_group_box.setLayout(optimization_group_box_layout)
-        
-        punc_group=QButtonGroup(self)
-        self.text_dir_punc_none_button = QRadioButton("""No presentation optimization""")
-        optimization_group_box_layout.addWidget(self.text_dir_punc_none_button)
-        self.text_dir_punc_button = QRadioButton("""Optimize presentation for Readium reader""")
-        self.text_dir_punc_button.setToolTip(_('Use vert/horiz punctuation presentation forms for Chrome Readium Epub3 reader'))
-        optimization_group_box_layout.addWidget(self.text_dir_punc_button)
-        self.text_dir_punc_kindle_button = QRadioButton("""Optimize presentation for Kindle reader""")
-        self.text_dir_punc_kindle_button.setToolTip(_('Use vert/horiz puncuation presentation forms for Kindle reader'))
-        optimization_group_box_layout.addWidget(self.text_dir_punc_kindle_button)
-        self.text_dir_punc_none_button.toggled.connect(self.update_gui)
-        self.text_dir_punc_button.toggled.connect(self.update_gui)
-        self.text_dir_punc_kindle_button.toggled.connect(self.update_gui)
+        punctuation_layout.addWidget(self.punc_settings_btn)
+        self.punc_settings_btn.clicked.connect(self.punc_settings_btn_clicked)
+        self.punctuation_dialog = None
 
         source_group=QButtonGroup(self)
-        self.file_source_button = QRadioButton(_('Selected File Only'))
         self.book_source_button = QRadioButton(_('Entire eBook'))
-        source_group.addButton(self.file_source_button)
+        self.file_source_button = QRadioButton(_('Selected File Only'))
+        self.seltext_source_button = QRadioButton(_('Selected Text'))
+        self.seltext_source_button.setToolTip(_('Selected Text is bracketed by <!--PI_SELTEXT_START--> and <!--PI_SELTEXT_END-->'))
         source_group.addButton(self.book_source_button)
+        source_group.addButton(self.file_source_button)
+        source_group.addButton(self.seltext_source_button)
         self.source_group_box = QGroupBox(_('Source'))
         if not self.force_entire_book:
             widgetLayout.addWidget(self.source_group_box)
             source_group_box_layout = QVBoxLayout()
             self.source_group_box.setLayout(source_group_box_layout)
-            source_group_box_layout.addWidget(self.file_source_button)
             source_group_box_layout.addWidget(self.book_source_button)
+            source_group_box_layout.addWidget(self.file_source_button)
+            source_group_box_layout.addWidget(self.seltext_source_button)
 
         layout.addSpacing(10)
         self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
 
         self.button_box.accepted.connect(self._ok_clicked)
-        self.button_box.rejected.connect(self.reject)
+        self.button_box.rejected.connect(self._reject_clicked)
         layout.addWidget(self.button_box)
 
-        self.input_combo.setCurrentIndex(self.prefs['input_format'])
-        self.output_combo.setCurrentIndex(self.prefs['output_format'])
-        self.no_conversion_button.setChecked(self.prefs['no_conversion'])
-        self.trad_to_simp_button.setChecked(self.prefs['trad_to_simp'])
-        self.simp_to_trad_button.setChecked(self.prefs['simp_to_trad'])
-        self.trad_to_trad_button.setChecked(self.prefs['trad_to_trad'])
-        if not self.force_entire_book:
-            self.file_source_button.setChecked(self.prefs['use_html_file'])
-            self.book_source_button.setChecked(self.prefs['use_entire_book'])
+        self.input_combo.setCurrentIndex(self.prefs['input_locale'])
+        self.output_combo.setCurrentIndex(self.prefs['output_locale'])
+
+        if self.prefs['conversion_type'] == 0:
+            self.no_conversion_button.setChecked(True)
+        elif self.prefs['conversion_type'] == 1:
+            self.trad_to_simp_button.setChecked(True)
+        elif self.prefs['conversion_type'] == 2:
+            self.simp_to_trad_button.setChecked(True)
         else:
-            self.file_source_button.setChecked(False)
+            self.trad_to_trad_button.setChecked(True)
+
+        if not self.force_entire_book:
+            if self.prefs['input_source'] == 1:
+                self.file_source_button.setChecked(True)
+            elif self.prefs['input_source'] == 2:
+                self.seltext_source_button.setChecked(True)
+            else:
+                self.book_source_button.setChecked(True)
+        else:
             self.book_source_button.setChecked(True)
+            self.file_source_button.setChecked(False)
+            self.seltext_source_button.setChecked(False)
 
-        self.quotation_no_conversion_button.setChecked(self.prefs['quote_no_conversion'])
-        self.quotation_trad_to_simp_button.setChecked(self.prefs['quote_trad_to_simp'])
-        self.quotation_simp_to_trad_button.setChecked(self.prefs['quote_simp_to_trad'])
+        if self.prefs['quotation_type'] == 1:
+            self.quotation_trad_to_simp_button.setChecked(True)
+        elif self.prefs['quotation_type'] == 2:
+            self.quotation_simp_to_trad_button.setChecked(True)
+        else:
+            self.quotation_no_conversion_button.setChecked(True)
 
-        self.use_smart_quotes.setChecked(self.prefs['use_smart_quotes'])
-        self.text_dir_combo.setCurrentIndex(self.prefs['orientation'])
-        self.text_dir_punc_none_button.setChecked(self.prefs['no_optimization'])
-        self.text_dir_punc_button.setChecked(self.prefs['readium_optimization'])
-        self.text_dir_punc_kindle_button.setChecked(self.prefs['kindle_optimization'])
+        self.text_dir_combo.setCurrentIndex(self.prefs['output_orientation'])
+
+        self.set_to_preferences()
         self.update_gui()
 
-    def update_gui(self):
-        if (self.quotation_trad_to_simp_button.isChecked()):
-            self.use_smart_quotes.setEnabled(True)
-        else:
-            self.use_smart_quotes.setEnabled(False)
 
-        if self.text_dir_combo.currentIndex() == 0:
-            self.optimization_group_box.setEnabled(False)
-            self.text_dir_punc_none_button.setEnabled(False)
-            self.text_dir_punc_button.setEnabled(False)
-            self.text_dir_punc_kindle_button.setEnabled(False)
+    def set_to_preferences(self):
+        self.input_combo.setCurrentIndex(self.prefs['input_locale'])
+        self.output_combo.setCurrentIndex(self.prefs['output_locale'])
+
+        if self.prefs['conversion_type'] == 0:
+            self.no_conversion_button.setChecked(True)
+        elif self.prefs['conversion_type'] == 1:
+            self.trad_to_simp_button.setChecked(True)
+        elif self.prefs['conversion_type'] == 2:
+            self.simp_to_trad_button.setChecked(True)
         else:
-            self.optimization_group_box.setEnabled(True)
-            self.text_dir_punc_none_button.setEnabled(True)
-            self.text_dir_punc_button.setEnabled(True)
-            self.text_dir_punc_kindle_button.setEnabled(True)
-            
+            self.trad_to_trad_button.setChecked(True)
+
+        if not self.force_entire_book:
+            if self.prefs['input_source'] == 1:
+                self.file_source_button.setChecked(True)
+            elif self.prefs['input_source'] == 2:
+                self.seltext_source_button.setChecked(True)
+            else:
+                self.book_source_button.setChecked(True)
+        else:
+            self.book_source_button.setChecked(True)
+            self.file_source_button.setChecked(False)
+            self.seltext_source_button.setChecked(False)
+
+        if self.prefs['quotation_type'] == 1:
+            self.quotation_trad_to_simp_button.setChecked(True)
+        elif self.prefs['quotation_type'] == 2:
+            self.quotation_simp_to_trad_button.setChecked(True)
+        else:
+            self.quotation_no_conversion_button.setChecked(True)
+
+        self.text_dir_combo.setCurrentIndex(self.prefs['output_orientation'])
+
+
+    def update_gui(self):
         if self.no_conversion_button.isChecked():
             self.input_combo.setEnabled(False)
             self.output_combo.setEnabled(False)
@@ -244,7 +286,9 @@ class ConversionDialog(Dialog):
         elif self.trad_to_simp_button.isChecked():
             self.input_combo.setEnabled(True)
             #only mainland output locale for simplified output
+            self.output_combo.blockSignals(True)
             self.output_combo.setCurrentIndex(0)
+            self.output_combo.blockSignals(False)
             self.output_combo.setEnabled(False)
             self.use_target_phrases.setEnabled(True)
             self.output_region_label.setEnabled(False)
@@ -253,7 +297,9 @@ class ConversionDialog(Dialog):
             
         elif self.simp_to_trad_button.isChecked():
             #only mainland input locale for simplified input
+            self.output_combo.blockSignals(True)
             self.input_combo.setCurrentIndex(0)
+            self.output_combo.blockSignals(False)
             self.input_combo.setEnabled(False)
             self.output_combo.setEnabled(True)
             self.use_target_phrases.setEnabled(True)
@@ -264,7 +310,9 @@ class ConversionDialog(Dialog):
         elif self.trad_to_trad_button.isChecked():
             #Trad->Trad
             #currently only mainland input locale for Trad->Trad
+            self.output_combo.blockSignals(True)
             self.input_combo.setCurrentIndex(0)
+            self.output_combo.blockSignals(False)
             self.input_combo.setEnabled(False)
             self.output_combo.setEnabled(True)
             self.use_target_phrases.setEnabled(True)
@@ -280,75 +328,182 @@ class ConversionDialog(Dialog):
             self.output_region_label.setEnabled(True)
             self.input_region_label.setEnabled(True)
 
+        if self.text_dir_combo.currentIndex() == 0:
+            self.update_punctuation.blockSignals(True)
+            self.update_punctuation.setChecked(False)
+            self.update_punctuation.blockSignals(False)
+            self.update_punctuation.setEnabled(False)
+        else:
+            self.update_punctuation.blockSignals(True)
+            self.update_punctuation.setEnabled(True)
+            self.update_punctuation.blockSignals(False)
+
+        if self.update_punctuation.isChecked():
+            self.punc_settings_btn.setEnabled(True)
+        else:
+            self.punc_settings_btn.setEnabled(False)
+
     def _ok_clicked(self):
-        output_mode = 0
-        if self.trad_to_simp_button.isChecked():
-            output_mode = 1    #trad -> simp
-        if self.simp_to_trad_button.isChecked():
-            output_mode = 2    #simp -> trad
-        elif self.trad_to_trad_button.isChecked():
-            output_mode = 3    #trad -> trad
-
-        quote_mode = 0
-        if self.quotation_trad_to_simp_button.isChecked():
-            quote_mode = 1    #trad -> simp
-        if self.quotation_simp_to_trad_button.isChecked():
-            quote_mode = 2    #simp -> trad
-
-        optimization_mode = 0
-        if self.text_dir_punc_button.isChecked():
-            optimization_mode = 1    #Readium
-        if self.text_dir_punc_kindle_button.isChecked():
-            optimization_mode = 2    #Kindle
- 
-        self.criteria = (
-            self.file_source_button.isChecked(), output_mode, self.input_combo.currentIndex(),
-            self.output_combo.currentIndex(), self.use_target_phrases.isChecked(), quote_mode,
-            self.use_smart_quotes.isChecked(), self.text_dir_combo.currentIndex(), optimization_mode)
         self.savePrefs()
         self.accept()
 
-    def getCriteria(self):
-        return self.criteria
+    def _reject_clicked(self):
+        self.set_to_preferences()
+        self.update_gui()
+        self.reject()
 
-    def prefsPrep(self):
-        from calibre.utils.config import JSONConfig
-        plugin_prefs = JSONConfig('plugins/{0}_ChineseConversion_settings'.format(PLUGIN_SAFE_NAME))
-        plugin_prefs.defaults['input_format'] = 0
-        plugin_prefs.defaults['output_format'] = 0
-        plugin_prefs.defaults['no_conversion'] = True
-        plugin_prefs.defaults['trad_to_simp'] = False
-        plugin_prefs.defaults['use_html_file'] = True
-        plugin_prefs.defaults['simp_to_trad'] = False
-        plugin_prefs.defaults['trad_to_trad'] = False
-        plugin_prefs.defaults['use_entire_book'] = True
-        plugin_prefs.defaults['use_target_phrases'] = True
-        plugin_prefs.defaults['quote_no_conversion'] = True
-        plugin_prefs.defaults['quote_trad_to_simp'] = False
-        plugin_prefs.defaults['quote_simp_to_trad'] = False
-        plugin_prefs.defaults['use_smart_quotes'] = False
-        plugin_prefs.defaults['orientation'] = 0
-        plugin_prefs.defaults['no_optimization'] = True
-        plugin_prefs.defaults['readium_optimization'] = False
-        plugin_prefs.defaults['kindle_optimization'] = False
-        return plugin_prefs
+    def punc_settings_btn_clicked(self):
+#        if not self.punctuation_dialog:
+#            self.punctuation_dialog = PuncuationDialog(self.parent, self.prefs)
+        self.punctuation_dialog.exec_()
 
     def savePrefs(self):
-        self.prefs['input_format'] = self.input_combo.currentIndex()
-        self.prefs['output_format'] = self.output_combo.currentIndex()
-        self.prefs['no_conversion'] = self.no_conversion_button.isChecked()
-        self.prefs['trad_to_simp'] = self.trad_to_simp_button.isChecked()
-        self.prefs['use_html_file'] = self.file_source_button.isChecked()
-        self.prefs['simp_to_trad'] = self.simp_to_trad_button.isChecked()
-        self.prefs['trad_to_trad'] = self.trad_to_trad_button.isChecked()
-        self.prefs['use_entire_book'] = self.book_source_button.isChecked()
+        self.prefs['input_locale'] = self.input_combo.currentIndex()
+        self.prefs['output_locale'] = self.output_combo.currentIndex()
+
+        if self.trad_to_simp_button.isChecked():
+            self.prefs['conversion_type'] = 1
+        elif self.simp_to_trad_button.isChecked():
+            self.prefs['conversion_type'] = 2
+        elif self.trad_to_trad_button.isChecked():
+            self.prefs['conversion_type'] = 3
+        else:
+            self.prefs['conversion_type'] = 0
+
+        if self.file_source_button.isChecked():
+            self.prefs['input_source'] = 1
+        elif self.seltext_source_button.isChecked():
+            self.prefs['input_source'] = 2
+        else:
+            self.prefs['input_source'] = 0
+
         self.prefs['use_target_phrases'] = self.use_target_phrases.isChecked()
-        self.prefs['quote_no_conversion'] = self.quotation_no_conversion_button.isChecked()
-        self.prefs['quote_trad_to_simp'] = self.quotation_trad_to_simp_button.isChecked()
-        self.prefs['quote_simp_to_trad'] = self.quotation_simp_to_trad_button.isChecked()        
-        self.prefs['use_smart_quotes'] = self.use_smart_quotes.isChecked()
-        self.prefs['orientation'] = self.text_dir_combo.currentIndex()
-        self.prefs['no_optimization'] = self.text_dir_punc_none_button.isChecked()
-        self.prefs['readium_optimization'] = self.text_dir_punc_button.isChecked()
-        self.prefs['kindle_optimization'] = self.text_dir_punc_kindle_button.isChecked()
+
+        if self.quotation_trad_to_simp_button.isChecked():
+            self.prefs['quotation_type'] = 1
+        elif self.quotation_simp_to_trad_button.isChecked():
+            self.prefs['quotation_type'] = 2
+        else:
+            self.prefs['quotation_type'] = 0   
+
+        self.prefs['output_orientation'] = self.text_dir_combo.currentIndex()
+
+    def getRegex(self):
+        return self.punctuation_dialog.getRegex()
+
+class PuncuationDialog(Dialog):
+
+    def __init__(self, parent, prefs, punc_dict, default_omitted_puncuation):
+        self.prefs = prefs
+        self.punc_dict = punc_dict
+        self.default_omitted_puncuation = default_omitted_puncuation
+        self.parent = parent
+        self.puncSettings = set()
+        Dialog.__init__(self, _('Chinese Punctuation'), 'chinese_conversion_punctuation_dialog', parent)
+
+    def setup_ui(self):
+        self.punc_setting = {}
+        self.checkbox_dict = {}
+
+        # Create layout for entire dialog
+        layout = QVBoxLayout(self)
+        self.setLayout(layout)
+
+        #Create a scroll area for the top part of the dialog
+        self.scrollArea = QScrollArea(self)
+        self.scrollArea.setWidgetResizable(True)
+
+        # Create widget for all the contents of the dialog except the buttons
+        self.scrollContentWidget = QWidget(self.scrollArea)
+        self.scrollArea.setWidget(self.scrollContentWidget)
+        widgetLayout = QVBoxLayout(self.scrollContentWidget)
+
+        # Add scrollArea to dialog
+        layout.addWidget(self.scrollArea)
+
+        self.punctuation_group_box = QGroupBox(_('Punctuation'))
+        widgetLayout.addWidget(self.punctuation_group_box)
+
+
+        self.punctuation_group_box_layout = QVBoxLayout()
+        self.punctuation_group_box.setLayout(self.punctuation_group_box_layout)
+
+        for x in self.punc_dict:
+            str = x + " <-> " + self.punc_dict[x]
+            widget = QCheckBox(str)
+            self.checkbox_dict[x] = widget
+            self.punctuation_group_box_layout.addWidget(widget)
+            if x in self.prefs['punc_omits']:
+                widget.setChecked(False)
+            else:
+                widget.setChecked(True)
+
+
+        self.button_box_settings = QDialogButtonBox()
+        self.clearall_button = self.button_box_settings.addButton("Clear All", QDialogButtonBox.ActionRole)
+        self.setall_button = self.button_box_settings.addButton("Set All", QDialogButtonBox.ActionRole)
+        self.default_button = self.button_box_settings.addButton("Default", QDialogButtonBox.ActionRole)
+        self.button_box_settings.clicked.connect(self._action_clicked)
+        layout.addWidget(self.button_box_settings)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.accepted.connect(self._ok_clicked)
+##        self.button_box.clicked.connect(self._action_clicked)
+        self.button_box.rejected.connect(self._reject_clicked)
+        layout.addWidget(self.button_box)
+
+    def savePrefs(self):
+        setting = ""
+        for x in self.puncSettings:
+            setting = setting + x
+##        print("savePrefs: " + setting)
+        self.prefs['punc_omits'] = setting
+
+    def _ok_clicked(self):
+        self.puncSettings.clear()
+        # Loop through and update set of unchecked items
+        for x in self.checkbox_dict.keys():
+            if not self.checkbox_dict[x].isChecked():
+                self.puncSettings.add(x)
+        self.savePrefs()
+        self.accept()
+
+    def _reject_clicked(self):
+        # Restore back to values when first openned
+        # This will be the same as the preferences
+        ## loop through all checkboxes
+        for x in self.checkbox_dict.keys():
+            self.checkbox_dict[x].blockSignals(True)
+            if x in self.prefs['punc_omits']:
+                self.checkbox_dict[x].setChecked(False)
+            else:
+                self.checkbox_dict[x].setChecked(True)
+            self.checkbox_dict[x].blockSignals(False)
+        self.reject()
+
+    def _action_clicked(self, button):
+        ## Find out which button is pressed
+        if button is self.clearall_button:
+            ## loop through all checkboxes and unset
+            for x in self.checkbox_dict.values():
+                x.blockSignals(True)
+                x.setChecked(False)
+                x.blockSignals(False)
+
+        elif button is self.setall_button:
+            ## loop through all checkboxes and set
+            for x in self.checkbox_dict.values():
+                x.blockSignals(True)
+                x.setChecked(True)
+                x.blockSignals(False)
+
+        elif button is self.default_button:
+            ## loop through all checkboxes
+            for x in self.checkbox_dict.keys():
+                self.checkbox_dict[x].blockSignals(True)
+                if x in self.default_omitted_puncuation:
+                    self.checkbox_dict[x].setChecked(False)
+                else:
+                    self.checkbox_dict[x].setChecked(True)
+                self.checkbox_dict[x].blockSignals(False)
 
