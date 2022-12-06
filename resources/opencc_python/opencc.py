@@ -27,22 +27,26 @@ import os
 import json
 import re
 
-CONFIG_DIR = 'config'
-DICT_DIR = 'dictionary'
+CONFIG_FILE = 'config'
+DICT_FILE = 'dictionary'
 
+# Dictionary mapping ("old", "new") as a key and conversion count as a value
+_counts_dict = {}
 
 class OpenCC:
     def __init__(self, resource_getter, conversion=None):
         """
         init OpenCC
-        :param resource_getter: function that takes 2 parameters
-         'config' or 'dictionary', and a corresponding file name. It returns
-         bytes from the selected file.
+        :param resource_getter: function that takes 2 parameters.
+         The first parameter is CONFIG_FILE, or DICT_FILE
+         The second parameter is a file name associated with the directory.
+         It returns bytes from the selected file.
         :param conversion: the conversion of usage, options are
          'hk2s', 's2hk', 's2t', 's2tw', 's2twp', 't2hk', 't2s', 't2tw', 'tw2s', and 'tw2sp'
          check the json file names in config directory
         :return: None
         """
+        _counts_dict.clear()
         self.conversion_name = ''
         self.conversion = conversion
         self._dict_init_done = False
@@ -53,14 +57,25 @@ class OpenCC:
         # List of sentence separators from OpenCC PhraseExtract.cpp. None of these separators are allowed as
         # part of a dictionary entry
         self.split_chars_re = re.compile(
-            r'(\s+|-|,|\.|\?|!|\*|　|，|。|、|；|：|？|！|…|“|”|‘|’|『|』|「|」|﹁|﹂|—|－|（|）|《|》|〈|〉|～|．|／|＼|︒|︑|︔|︓|︿|﹀|︹|︺|︙|︐|［|﹇|］|﹈|︕|︖|︰|︳|︴|︽|︾|︵|︶|｛|︷|｝|︸|﹃|﹄|【|︻|】|︼)')
+            r'(\s+|-|,|\.|\?|!|\*|　|，|。|、|；|：|？|！|…|“|”|‘|’|『|』|「|」|﹁|﹂|—|－|（|）|《|》|〈|〉|～|．|／|＼|︒|︑|︔|︓|︿|﹀|︹|︺|︙|︐|［|﹇|］|﹈|︕|︖|︰|︳|︴|︽|︾|︵|︶|｛|︷|｝|︸|﹃|﹄|【|︻|】|︼|—|， |： |︲|～)')
         if self.conversion is not None:
             self._init_dict()
+
+##    def clear_counts (self):
+##        _counts_dict.clear()
+##
+##    def get_counts (self):
+##        return _counts_dict
 
     def convert(self, string):
         """
         Convert string from Simplified Chinese to Traditional Chinese or vice versa
         """
+
+        # echo the input if no conversion is wanted
+        if self.conversion == "no_conversion":
+            return string
+
         if not self._dict_init_done:
             self._init_dict()
             self._dict_init_done = True
@@ -114,8 +129,10 @@ class OpenCC:
             raise ValueError('conversion is not set')
 
         self._dict_chain = []
+##        print(self.conversion)
         config = self.conversion + '.json'
-        bytes = self.resource_getter(CONFIG_DIR, config)
+##        print(config)
+        bytes = self.resource_getter(CONFIG_FILE, config)
         if bytes is not None:
             setting_json = json.loads(bytes.decode("utf-8"))
         else:
@@ -140,7 +157,7 @@ class OpenCC:
                 if not item in self.dict_cache:
                     map_dict = {}
                     max_len = 1
-                    bytes = self.resource_getter(DICT_DIR, item)
+                    bytes = self.resource_getter(DICT_FILE, item)
                     if bytes is not None:
                         converted_data = bytes.decode("utf-8")
                         converted_data_list = converted_data.splitlines()
@@ -186,9 +203,13 @@ class OpenCC:
         """
         if self.conversion == conversion:
             return
+        elif conversion == "no_conversion":
+            # just loopback the input
+            self.conversion = conversion
         else:
             self._dict_init_done = False
             self.conversion = conversion
+
 
 class StringTree:
     """
@@ -196,6 +217,7 @@ class StringTree:
     """
     def __init__(self, string):
         self.string = string
+        self.old_string = string
         self.left = None
         self.right = None
         self.string_len = len(string)
@@ -228,11 +250,12 @@ class StringTree:
                             self.left = StringTree(self.string[:i])
                             self.left.convert_tree(test_dict)
                         if (i+test_len) < self.string_len:
-                            # Put everything to the left of the match into the left sub-tree and further process it
+                            # Put everything to the right of the match into the right sub-tree and further process it
                             self.right = StringTree(self.string[i+test_len:])
                             self.right.convert_tree(test_dict)
                         # Save the dictionary value in this tree
                         value = test_dict[1][self.string[i:i+test_len]]
+                        self.old_string = self.string[i:i+test_len]
                         if len(value.split(' ')) > 1:
                             # multiple mapping, use the first one for now
                             value = value.split(' ')[0]
@@ -249,9 +272,12 @@ class StringTree:
         :return: list of words from a inorder traversal of the tree
         """
         result = []
+
         if self.left is not None:
             result += self.left.inorder()
+
         result.append(self.string)
+
         if self.right is not None:
             result += self.right.inorder()
         return result

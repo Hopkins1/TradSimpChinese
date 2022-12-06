@@ -9,7 +9,7 @@ from calibre.customize import EditBookToolPlugin
 PLUGIN_NAME = "Chinese Text Conversion"
 PLUGIN_SAFE_NAME = PLUGIN_NAME.strip().lower().replace(' ', '_')
 PLUGIN_DESCRIPTION = 'A plugin to convert traditional and simplified Chinese text'
-PLUGIN_VERSION_TUPLE = (2, 4, 0)
+PLUGIN_VERSION_TUPLE = (3, 0, 0)
 PLUGIN_VERSION = '.'.join([str(x) for x in PLUGIN_VERSION_TUPLE])
 PLUGIN_AUTHORS = 'Hopkins'
 
@@ -20,7 +20,7 @@ class ChineseTextPlugin(EditBookToolPlugin):
     author = PLUGIN_AUTHORS
     supported_platforms = ['windows', 'osx', 'linux']
     description = PLUGIN_DESCRIPTION
-    minimum_calibre_version = (3, 37, 0)
+    minimum_calibre_version = (6, 0, 0)
 
     def cli_main(self,argv):
         #Typical Usage: calibre-debug --run-plugin "Chinese Text Conversion" -- -h

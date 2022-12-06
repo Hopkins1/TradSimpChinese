@@ -24,4 +24,4 @@ reverse.py
         python reverse.py
 		
 	or Run:
-        calibre-debug merge.py
+        calibre-debug reverse.py
