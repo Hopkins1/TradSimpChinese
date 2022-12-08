@@ -17,6 +17,7 @@ import io
 DICT_DIRECTORY = '.'
 
 REV_INPUTS = [
+    'JPVariants',
     'TWVariants',
     'TWPhrases',
     'HKVariants'
