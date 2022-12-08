@@ -47,8 +47,8 @@ class ConversionDialog(Dialog):
 ##        print(self.prefs['input_source'])           # 0=whole book, 1=current file, 2=selected text
 ##
 ##        print(self.prefs['conversion_type'])        # 0=No change, 1=trad->simp, 2=simp->trad, 3=trad->trad
-##        print(self.prefs['input_locale'])           # 0=Mainland, 1=Hong Kong, 2=Taiwan
-##        print(self.prefs['output_locale'])          # 0=Mainland, 1=Hong Kong, 2=Taiwan
+##        print(self.prefs['input_locale'])           # 0=Mainland, 1=Hong Kong, 2=Taiwan 3=Japan
+##        print(self.prefs['output_locale'])          # 0=Mainland, 1=Hong Kong, 2=Taiwan 3=Japan
 ##        print(self.prefs['use_target_phrases'])     # True/False
 ##
 ##        print(self.prefs['quotation_type'])         # 0=No change, 1=Western, 2=East Asian
@@ -113,7 +113,7 @@ class ConversionDialog(Dialog):
         input_layout.addWidget(self.input_region_label)
         self.input_combo = QComboBox()
         input_layout.addWidget(self.input_combo)
-        self.input_combo.addItems([_('Mainland'), _('Hong Kong'), _('Taiwan')])
+        self.input_combo.addItems([_('Mainland'), _('Hong Kong'), _('Taiwan'), _('Japan')])
         self.input_combo.setToolTip(_('Select the origin region of the input'))
         self.input_combo.currentIndexChanged.connect(self.update_gui)
 
@@ -123,7 +123,7 @@ class ConversionDialog(Dialog):
         output_layout.addWidget(self.output_region_label)
         self.output_combo = QComboBox()
         output_layout.addWidget(self.output_combo)
-        self.output_combo.addItems([_('Mainland'), _('Hong Kong'), _('Taiwan')])
+        self.output_combo.addItems([_('Mainland'), _('Hong Kong'), _('Taiwan'), _('Japan')])
         self.output_combo.setToolTip(_('Select the desired region of the output'))
         self.output_combo.currentIndexChanged.connect(self.update_gui)
 
@@ -284,40 +284,30 @@ class ConversionDialog(Dialog):
             self.style_group_box.setEnabled(False)
             
         elif self.trad_to_simp_button.isChecked():
+            #only mainland and Japan output locale for simplified output
             self.input_combo.setEnabled(True)
-            #only mainland output locale for simplified output
-            self.output_combo.blockSignals(True)
-            self.output_combo.setCurrentIndex(0)
-            self.output_combo.blockSignals(False)
-            self.output_combo.setEnabled(False)
+            self.output_combo.setEnabled(True)
             self.use_target_phrases.setEnabled(True)
-            self.output_region_label.setEnabled(False)
+            self.output_region_label.setEnabled(True)
             self.input_region_label.setEnabled(True)
             self.style_group_box.setEnabled(True)
             
         elif self.simp_to_trad_button.isChecked():
-            #only mainland input locale for simplified input
-            self.output_combo.blockSignals(True)
-            self.input_combo.setCurrentIndex(0)
-            self.output_combo.blockSignals(False)
-            self.input_combo.setEnabled(False)
+            #only mainland and Japan input locale for simplified input
+            self.input_combo.setEnabled(True)
             self.output_combo.setEnabled(True)
             self.use_target_phrases.setEnabled(True)
             self.output_region_label.setEnabled(True)
-            self.input_region_label.setEnabled(False)
+            self.input_region_label.setEnabled(True)
             self.style_group_box.setEnabled(True)
             
         elif self.trad_to_trad_button.isChecked():
             #Trad->Trad
-            #currently only mainland input locale for Trad->Trad
-            self.output_combo.blockSignals(True)
-            self.input_combo.setCurrentIndex(0)
-            self.output_combo.blockSignals(False)
-            self.input_combo.setEnabled(False)
+            self.input_combo.setEnabled(True)
             self.output_combo.setEnabled(True)
             self.use_target_phrases.setEnabled(True)
             self.output_region_label.setEnabled(True)
-            self.input_region_label.setEnabled(False)
+            self.input_region_label.setEnabled(True)
             self.style_group_box.setEnabled(True)
 
         else:
