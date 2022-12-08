@@ -57,8 +57,8 @@ PUNC_OMITS = "、︔！？〖〗…‥＿"
 
 INPUT_SOURCE = 0           # 0=whole book, 1=current file, 2=selected text
 CONVERSION_TYPE = 1        # 0=No change, 1=trad->simp, 2=simp->trad, 3=trad->trad
-INPUT_LOCALE = 2           # 0=Mainland, 1=Hong Kong, 2=Taiwan
-OUTPUT_LOCALE = 3          # 0=Mainland, 1=Hong Kong, 2=Taiwan
+INPUT_LOCALE = 2           # 0=Mainland, 1=Hong Kong, 2=Taiwan 3=Japan
+OUTPUT_LOCALE = 3          # 0=Mainland, 1=Hong Kong, 2=Taiwan 3=Japan
 USE_TARGET_PHRASES = 4     # True/False
 QUOTATION_TYPE = 5         # 0=No change, 1=Western, 2=East Asian
 OUTPUT_ORIENTATION = 6     # 0=No change, 1=Horizontal, 2=Vertical
@@ -105,6 +105,7 @@ class HTML_TextProcessor(HTMLParser):
           self.textConverter = textConvertor
           self.criteria = None
           self.converting = True
+          self.language = None
 
           # Create regular expressions to modify quote styles
           self.trad_to_simp_quotes = {'「':'“', '」':'”', '『':'‘', '』':'’'}
@@ -163,7 +164,7 @@ class HTML_TextProcessor(HTMLParser):
 ##            print("     attr:", attr)
 
         # change language code inside of tags
-        if (self.criteria[INPUT_SOURCE] == 0) and (self.criteria[CONVERSION_TYPE] != 0):
+        if (self.criteria[INPUT_SOURCE] == 0) and (self.criteria[CONVERSION_TYPE] != 0) and (self.language != None):
             self.result.append(self.zh_re.sub(self.language, self.get_starttag_text()))
         else:
             self.result.append(self.get_starttag_text())
@@ -180,7 +181,7 @@ class HTML_TextProcessor(HTMLParser):
 ##            print("     attr:", attr)
 
         # change language code inside of tags
-        if (self.criteria[INPUT_SOURCE] == 0) and (self.criteria[CONVERSION_TYPE] != 0):
+        if (self.criteria[INPUT_SOURCE] == 0) and (self.criteria[CONVERSION_TYPE] != 0) and (self.language != None):
             self.result.append(self.zh_re.sub(self.language, self.get_starttag_text()))
         else:
             self.result.append(self.get_starttag_text())
@@ -309,9 +310,10 @@ class TradSimpChinese(Tool):
 
             try:
                 conversion = get_configuration(criteria)
+                print("Conversion: ", conversion);
                 if conversion == 'unsupported_conversion':
                     info_dialog(self.gui, _('No Changes'),
-                    _('The output configuration selected is not supported.\n Please use a different input/output style combination'), show=True)
+                    _('The output configuration selected is not supported.\n Please use a different Input/Output Language Styles combination'), show=True)
                 else:
                     QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
                     QApplication.processEvents()
@@ -343,10 +345,11 @@ class TradSimpChinese(Tool):
                                 _('No text meeting your criteria was found to change.\nNo changes made.'), show=True)
 
     def process_files(self, criteria):
-        conversion  = get_configuration(criteria)
         container = self.current_container  # The book being edited as a container object
-        self.language = 'lang=\"' + get_language_code(criteria) + '\"'
-        self.parser.setLanguage(self.language)
+        lang = get_language_code(criteria)
+        if lang != "None":
+            self.language = 'lang=\"' + lang + '\"'
+            self.parser.setLanguage(self.language)
         if criteria[INPUT_SOURCE] == 1 or criteria[INPUT_SOURCE] == 2:
             # Only convert the selected file
             name = editor_name(self.gui.central.current_editor)
@@ -365,12 +368,12 @@ class TradSimpChinese(Tool):
             # Cover the entire book
             # Set metadata and Table of Contents (TOC) if language changed
             if criteria[CONVERSION_TYPE] != 0:
-                self.filesChanged = set_metadata_toc(container, get_language_code(criteria), criteria, self.changed_files, self.converter)
+                self.filesChanged = set_metadata_toc(container, lang, criteria, self.changed_files, self.converter)
 
             # Check for orientation change
             direction_changed = False
             if criteria[OUTPUT_ORIENTATION] != 0:
-                direction_changed = set_flow_direction(container, get_language_code(criteria), criteria, self.changed_files, self.converter)
+                direction_changed = set_flow_direction(container, criteria, self.changed_files, self.converter)
 
             # Cover the text portion
             from calibre_plugins.chinese_text.resources.dialogs import ShowProgressDialog
@@ -414,8 +417,8 @@ def getPrefs():
 ##    print(plugin_prefs['input_source'])           # 0=whole book, 1=current file, 2=selected text
 ##
 ##    print(plugin_prefs['conversion_type'])        # 0=No change, 1=trad->simp, 2=simp->trad, 3=trad->trad
-##    print(plugin_prefs['input_locale'])           # 0=Mainland, 1=Hong Kong, 2=Taiwan
-##    print(plugin_prefs['output_locale'])          # 0=Mainland, 1=Hong Kong, 2=Taiwan
+##    print(plugin_prefs['input_locale'])           # 0=Mainland, 1=Hong Kong, 2=Taiwan 3=Japan
+##    print(plugin_prefs['output_locale'])          # 0=Mainland, 1=Hong Kong, 2=Taiwan 3=Japan
 ##    print(plugin_prefs['use_target_phrases'])     # True/False
 ##
 ##    print(plugin_prefs['quotation_type'])         # 0=No change, 1=Western, 2=East Asian
@@ -485,11 +488,13 @@ def get_language_code(criteria):
     output_type = criteria[OUTPUT_LOCALE]
     use_target_phrasing = criteria[USE_TARGET_PHRASES]
 
+    # Return 'None' if Japan locale is used so that no laguage changes are made
     language_code = 'None'
 
     if conversion_mode == 1:
-        #trad to simp, output type is always mainland (we don't yet support Malaysia/Singapore zh-SG)
-        language_code = 'zh-CN'
+        #trad to simp
+        if output_type == 0:
+            language_code = 'zh-CN'
 
     elif conversion_mode == 2:
         #simp to trad, (we don't support Macau yet zh-MO)
@@ -534,15 +539,16 @@ def set_metadata_toc(container, language, criteria, changed_files, converter):
     # Update the OPF metadata
     # The language and creator fields are special
     # Only update the dc language if the original language was a Chinese type and epub format
-    if container.book_type == u'epub':
-        items = container.opf_xpath('//opf:metadata/dc:language')
-        if len(items) > 0:
-            for item in items:
-                old_item = item.text
-                if re.search('zh-\w+|zh', item.text, flags=re.IGNORECASE) != None:
-                    item.text = language
-                if item.text != old_item:
-                    opfChanged = True
+    if language != "None":
+        if container.book_type == u'epub':
+            items = container.opf_xpath('//opf:metadata/dc:language')
+            if len(items) > 0:
+                for item in items:
+                    old_item = item.text
+                    if re.search('zh-\w+|zh', item.text, flags=re.IGNORECASE) != None:
+                        item.text = language
+                    if item.text != old_item:
+                        opfChanged = True
     # Update the creator text and file-as attribute
     items = container.opf_xpath('//opf:metadata/dc:creator')
     if len(items) > 0:
@@ -612,7 +618,7 @@ def add_flow_direction_properties(rule, orientation_value, break_value):
 
     return rule_changed
 
-def set_flow_direction(container, language, criteria, changed_files, converter):
+def set_flow_direction(container, criteria, changed_files, converter):
     # Open OPF and set flow
     flow = 'default'
     if criteria[OUTPUT_ORIENTATION] == 2:
@@ -730,7 +736,7 @@ def get_configuration(criteria):
     """
     :param criteria: the description of the desired conversion
     :return a tuple of the conversion direction and the output format:
-      1) 'hk2s', 'hk2t', 's2hk', 's2t', 's2tw', 's2twp', 't2hk', 't2hkp', 't2s', 't2tw', 'tw2s', 'tw2sp', 'tw2t', 'no_conversion', or 'unsupported_conversion'
+      1) 'hk2s', 'hk2t', 'jp2t', 's2hk', 's2t', 's2tw', 's2twp', 't2hk', 't2hkp', 't2jp', 't2s', 't2tw', 'tw2s', 'tw2sp', 'tw2t', 'no_conversion', or 'unsupported_conversion'
     """
     conversion_mode = criteria[CONVERSION_TYPE]
     input_type = criteria[INPUT_LOCALE]
@@ -744,27 +750,43 @@ def get_configuration(criteria):
         configuration = 'no_conversion'
 
     elif conversion_mode == 1:
-        #trad to simp, output type is always mainland
+        #trad to simp
         if input_type == 0:         # mainland
-            configuration = 't2s'
+            if output_type == 3:    # Japan
+                configuration = 't2jp' # traditional Chinese hanzi to simplified modern Japanese kanji
+            else: # mainland
+                configuration = 't2s'
         elif input_type == 1:       # Hong Kong
-            configuration = 'hk2s'
-        else:                       # Taiwan
-            configuration = 'tw2s'
-            if use_target_phrasing:
-                configuration += 'p'
+            if output_type != 0:    # not mainland
+                configuration = 'unsupported_conversion'
+            else:
+                configuration = 'hk2s'
+        elif input_type == 2:       # Taiwan
+            if output_type != 0:    # not mainland
+                configuration = 'unsupported_conversion'
+            else:
+                configuration = 'tw2s'
+                if use_target_phrasing:
+                    configuration += 'p'
+        else:
+            configuration = 'unsupported_conversion'
 
     elif conversion_mode == 2:
-        #simp to trad, input type is always mainland
+        #simp to trad
         configuration = 's'
-        if output_type == 0:          # mainland
-            configuration += '2t'
-        elif output_type == 1:        # Hong Kong
+        if output_type == 0:        # mainland
+            if input_type == 3:    # Japan
+                configuration = 'jp2t' #Simplified modern Japanese kanji to traditional Chinese hanzi
+            else: # mainland
+                configuration += '2t'
+        elif output_type == 1:      # Hong Kong
             configuration += '2hk'
-        else:                         # Taiwan
+        elif input_type == 2:       # Taiwan
             configuration += '2tw'
             if use_target_phrasing:
                 configuration += 'p'
+        else:                       # Japan
+            configuration = 'unsupported_conversion'
 
     else:
         #trad to trad
@@ -780,17 +802,16 @@ def get_configuration(criteria):
             if output_type == 0:
                 configuration = 'hk2t'
             else:
-                #HK trad -> HK or TW trad does nothing
+                #HK trad -> HK or TW trad does nothing, Japan is invalid
                 configuration = 'unsupported_conversion'
         elif input_type == 2:           # Taiwan
             if output_type == 0:
                 configuration = 'tw2t'
             else:
-                #TW trad -> HK or TW trad does nothing
+                #TW trad -> HK or TW trad does nothing, Japan is invalid
                 configuration = 'unsupported_conversion'
         else:
-            #hk -> tw, tw -> hk not currently set up
-            #hk -> hk and tw -> tw does nothing
+            #jp is simplified kanji only
             configuration = 'unsupported_conversion'
 
     return configuration
@@ -808,8 +829,8 @@ def cli_get_criteria(args):
     #                       1 = traditional->simplified
     #                       2 = simplified->traditional
     #                       3 = traditional->traditional
-    #   input_locale:       0 = Mainland, 1 = Hong Kong, 2 = Taiwan
-    #   output_local:       0 = Mainland, 1 = Hong Kong, 2 = Taiwan
+    #   input_locale:       0 = Mainland, 1 = Hong Kong, 2 = Taiwan 3 = Japan
+    #   output_local:       0 = Mainland, 1 = Hong Kong, 2 = Taiwan 3 = Japan
     #   use_target_phrase:  True - Modify text to use words associated with target locale
     #   quote_type:         0 = No change, 1 = Western, 2 = East Asian
     #   text_direction:     0 = No change, 1 = Horizontal, 2 = Vertical
@@ -862,12 +883,16 @@ def cli_get_criteria(args):
         input_locale = 1
     elif args.orig_opt == 'tw':
         input_locale = 2
+    elif args.orig_opt == 'jp':
+        input_locale = 3
 
     if args.dest_opt == 'hk':
         output_locale = 1
     elif args.dest_opt == 'tw':
         output_locale = 2
-        
+    elif args.dest_opt == 'jp':
+        output_locale = 3
+
     use_target_phrase = args.phrase_opt
 
     if args.quote_type_opt == 'w':
@@ -888,8 +913,10 @@ def cli_get_criteria(args):
     return criteria
 
 def cli_process_files(criteria, container, converter, parser):
-    lang = 'lang=\"' + get_language_code(criteria) + '\"'
-    parser.setLanguage(lang)
+    lang = get_language_code(criteria)
+    if lang != "None":
+        language = 'lang=\"' + lang + '\"'
+        parser.setLanguage(language)
 
     # Cover the entire book
     # Set metadata and Table of Contents (TOC)
@@ -899,7 +926,7 @@ def cli_process_files(criteria, container, converter, parser):
 
     # Set text orientation
     if criteria[OUTPUT_ORIENTATION] != 0:
-        set_flow_direction(container, get_language_code(criteria), criteria, changed_files, converter)
+        set_flow_direction(container, criteria, changed_files, converter)
 
     # Cover the text
     file_list = [i[0] for i in container.mime_map.items() if i[1] in OEB_DOCS]
@@ -930,8 +957,8 @@ def print_conversion_info(args, file_set, version, configuration_filename):
     else:
         print(_('Traditional->Traditional'))
     if args.direction_opt != 'none':
-        print(_('Chinese input locale: ') + args.orig_opt.upper())
-        print(_('Chinese output locale: ') + args.dest_opt.upper())
+        print(_('Input locale: ') + args.orig_opt.upper())
+        print(_('Outpututput locale: ') + args.dest_opt.upper())
         print(_('Use destination phrases: ') + str(args.phrase_opt))
 
     print(_('Quotation Mark Style: '), end="")
@@ -973,7 +1000,7 @@ def main(argv, plugin_version, usage=None):
 
     criteria = None
 
-    list_of_locales = ['cn', 'hk', 'tw']
+    list_of_locales = ['cn', 'hk', 'tw', 'jp']
     list_of_directions = ['t2s', 's2t', 't2t', 'none']
     quotation_types = ['w', 'e', 'no_change']
     text_directions = ['h', 'v', 'no_change']
