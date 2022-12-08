@@ -15,8 +15,8 @@ merge.py
 reverse.py
     for reversing dictionary keys and values (requires Python3)
 
-    reverse 'TWVariants.txt', 'TWPhrases.txt', 'HKVariants.txt'
-    to 'TWVariantsRev.txt', 'TWPhrasesRev.txt', 'HKVariantsRev.txt'
+    reverse 'JPVariants.txt' 'TWVariants.txt', 'TWPhrases.txt', 'HKVariants.txt'
+    to 'JPVariantsRev.txt' 'TWVariantsRev.txt', 'TWPhrasesRev.txt', 'HKVariantsRev.txt'
 
 	In a command shell whose current working directory is the dictionary
 
