@@ -49,8 +49,10 @@ CONFIG_FILE = 'config'
 DICT_FILE = 'dictionary'
 
 
-# Default punctuation characters that are not enabled
-PUNC_OMITS = "、︔！？〖〗…‥＿"
+# Default punctuation characters that are not enabled. Used to set the values for default button in
+# the punctuation dialog. Vertical presentation forms of these are not generally used in vertical text.
+# List was derived by examining actual vertical text epub books.
+PUNC_OMITS = "。、；：！？…‥＿﹏，"
 
 
 # Index into criteria      criteria values
@@ -62,8 +64,9 @@ OUTPUT_LOCALE = 3          # 0=Mainland, 1=Hong Kong, 2=Taiwan 3=Japan
 USE_TARGET_PHRASES = 4     # True/False
 QUOTATION_TYPE = 5         # 0=No change, 1=Western, 2=East Asian
 OUTPUT_ORIENTATION = 6     # 0=No change, 1=Horizontal, 2=Vertical
-PUNC_DICT = 7              # punctuation swapping dictionary based on settings, may be None
-PUNC_REGEX = 8             # precompiled regex axpression to swap punctuation, may be None
+UPDATE_PUNCTUATION = 7     # True/False
+PUNC_DICT = 8              # punctuation swapping dictionary based on settings, may be None
+PUNC_REGEX = 9             # precompiled regex axpression to swap punctuation, may be None
 
 
 #<!--PI_SELTEXT_START-->
@@ -72,7 +75,7 @@ seltext_start_tag = "PI_SELTEXT_START"
 #<!--PI_SELTEXT_END-->
 seltext_end_tag   = "PI_SELTEXT_END"
 
-# Horizontal full width characters to their vertical presentation forms lookup before dialog
+# Horizontal full width characters to their vertical presentation forms lookup before punctuation dialog
 # modification
 _h2v_master_dict = {'。':'︒', '、':'︑', '；':'︔', '：':'︓', '！':'︕', '？':'︖', '「':'﹁', '」':'﹂', '〈':'︿', '〉':'﹀',
         '『':'﹃', '』':'﹄', '《':'︽', '》':'︾', '【':'︻', '（':'︵', '】':'︼', '）':'︶','〖': '︗', '〗':'︘',
@@ -193,20 +196,21 @@ class HTML_TextProcessor(HTMLParser):
         text = data
         if self.converting:
             # Convert quotation marks
-            if self.criteria[QUOTATION_TYPE] != 0:
+            if (self.criteria[QUOTATION_TYPE] != 0):
                 text = self.replace_quotations(data)
 
             # Convert punctuation to vertical or horizontal using provided regular expression
+            # self.criteria[PUNC_REGEX] is only set if vertical or horizontal change selected
             if self.criteria[PUNC_REGEX] != None:
-                text = multiple_replace(self.criteria[PUNC_REGEX], self.criteria[PUNC_DICT], data)
+                text = multiple_replace(self.criteria[PUNC_REGEX], self.criteria[PUNC_DICT], text)
 
         # Convert text to traditional or simplified if needed
-##        print('handle_data CONVERSION_TYPE criteria = ', self.criteria[CONVERSION_TYPE])
+##          print('handle_data CONVERSION_TYPE criteria = ', self.criteria[CONVERSION_TYPE])
         if self.criteria[CONVERSION_TYPE] != 0 and self.converting:
-##            print('handle_data calling self.textConverter.convert(text)')
+##              print('handle_data calling self.textConverter.convert(text)')
             self.result.append(self.textConverter.convert(text))
         else:
-##            print('handle_data NOT calling self.textConverter.convert(text)')
+##              print('handle_data NOT calling self.textConverter.convert(text)')
             self.result.append(text)
 
 
@@ -299,9 +303,9 @@ class TradSimpChinese(Tool):
         from calibre_plugins.chinese_text.dialogs import ConversionDialog
         from calibre_plugins.chinese_text.resources.dialogs import ResultsDialog
 
-        self.preps = getPrefs()
+        self.prefs = getPrefs()
         if self.dlg == None:
-            self.dlg = ConversionDialog(self.gui, self.preps, _h2v_master_dict, PUNC_OMITS)
+            self.dlg = ConversionDialog(self.gui, self.prefs, _h2v_master_dict, PUNC_OMITS)
         if self.dlg.exec_():
             criteria = getCriteria()
             # Ensure any in progress editing the user is doing is present in the container
@@ -310,7 +314,7 @@ class TradSimpChinese(Tool):
 
             try:
                 conversion = get_configuration(criteria)
-                print("Conversion: ", conversion);
+##                print("Conversion: ", conversion);
                 if conversion == 'unsupported_conversion':
                     info_dialog(self.gui, _('No Changes'),
                     _('The output configuration selected is not supported.\n Please use a different Input/Output Language Styles combination'), show=True)
@@ -403,6 +407,8 @@ def prefsPrep():
 
     plugin_prefs.defaults['output_orientation'] = 0     # 0=No change, 1=Horizontal, 2=Vertical
 
+    plugin_prefs.defaults['update_punctuation'] = False #  True/False
+
     plugin_prefs.defaults['punc_omits'] = PUNC_OMITS    # Horizontal mark string in horizontal/vertical
                                                         # dictionary pairs that is NOT to be used. No
                                                         # space between marks in string.
@@ -425,12 +431,15 @@ def getPrefs():
 ##
 ##    print(plugin_prefs['output_orientation'])     # 0=No change, 1=Horizontal, 2=Vertical
 ##
+##    print(plugin_prefs['update_punctuation'])     # True/False
+##
 ##    print(plugin_prefs['punc_omits'])             # Horizontal mark string in horizontal/vertical
 ##                                                  # dictionary pairs that is NOT to be used. No
 ##                                                  # space between marks in string.
     return plugin_prefs
 
 def getCriteria():
+##    print('getCriteria() entered')
     # Get the criteria from the current saved preferences
     # The preference set is updated every time the user dialog is closed
     prefs = getPrefs()
@@ -438,7 +447,7 @@ def getCriteria():
     # copy the master conversion dictionary
     h2v = _h2v_master_dict
 
-    # remove unwanted conversions; these are stored in prefs 
+    # remove unwanted conversions; these are stored in prefs
     for x in prefs['punc_settings']:
         del h2v[x]
     h2v_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, h2v.keys())))
@@ -450,19 +459,18 @@ def getCriteria():
     punc_dict = {}
     punc_regex = None
 
-    if prefs['quotation_type'] != 0:
+    if prefs['update_punctuation']:
         if prefs['output_orientation'] == 1:
             punc_dict = v2h
             punc_regex = v2h_dict_regex
         elif prefs['output_orientation'] == 2:
-            if prefs['quotation_type'] == 1:
-                punc_dict = h2v
-                punc_regex = h2v_dict_regex
+            punc_dict = h2v
+            punc_regex = h2v_dict_regex
 
     criteria = (
         prefs['input_source'], prefs['conversion_type'], prefs['input_locale'],
         prefs['output_locale'], prefs['use_target_phrases'], prefs['quotation_type'],
-        prefs['output_orientation'], punc_dict, punc_regex)
+        prefs['output_orientation'], prefs['update_punctuation'], punc_dict, punc_regex)
 
     return criteria
 
@@ -524,7 +532,7 @@ def get_language_code(criteria):
 def set_metadata_toc(container, language, criteria, changed_files, converter):
     # Returns True if either the metadata or TOC files changed
     # changed_files is updated
-    
+
     opfChanged = False
     tocChanged = False
     # List of dc items in OPF file that get a simple text replacement
@@ -834,43 +842,44 @@ def cli_get_criteria(args):
     #   use_target_phrase:  True - Modify text to use words associated with target locale
     #   quote_type:         0 = No change, 1 = Western, 2 = East Asian
     #   text_direction:     0 = No change, 1 = Horizontal, 2 = Vertical
+    #   update_punctuation  True - Modify punctuation to match text_direction
 
     # Set up default values
-    input_source = 0          # Whole book
-    output_mode = 0           # None 
-    input_locale = 0          # Mainland
-    output_locale = 0         # Mainland
+    input_source = 0            # Whole book
+    output_mode = 0             # None
+    input_locale = 0            # Mainland
+    output_locale = 0           # Mainland
     use_target_phrase = False
-    quote_type = 0            # No change
-    text_direction = 0        # No change
+    quote_type = 0              # No change
+    text_direction = 0          # No change
+    update_punctuation = False  # No change
 
     # Get some of the criteria from the current saved preferences
     # The preference set is updated every time the user dialog is closed
     prefs = getPrefs()
 
-    # copy the master conversion dictionary
-    h2v = _h2v_master_dict
-
-    # remove unwanted conversions; these are stored in prefs 
-    for x in prefs['punc_settings']:
-        del h2v[x]
-    h2v_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, h2v.keys())))
-
-    # Vertical full width characters to their Horizontal presentation forms lookup
-    v2h = {v: k for k, v in h2v.items()}
-    v2h_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, v2h.keys())))
-
     punc_dict = {}
     punc_regex = None
 
-    if prefs['quotation_type'] != 0:
-        if prefs['output_orientation'] == 1:
+    if args.punctuation_opt and (args.text_dir_opt != 'none'):
+        # copy the master conversion dictionary
+        h2v = _h2v_master_dict
+
+        # remove unwanted conversions; these are stored in prefs
+        for x in prefs['punc_settings']:
+            del h2v[x]
+        h2v_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, h2v.keys())))
+
+        # Vertical full width characters to their Horizontal presentation forms lookup
+        v2h = {v: k for k, v in h2v.items()}
+        v2h_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, v2h.keys())))
+
+        if args.text_dir_opt == 'h':
             punc_dict = v2h
             punc_regex = v2h_dict_regex
-        elif prefs['output_orientation'] == 2:
-            if prefs['quotation_type'] == 1:
-                punc_dict = h2v
-                punc_regex = h2v_dict_regex
+        elif args.text_dir_opt == 'v':
+            punc_dict = h2v
+            punc_regex = h2v_dict_regex
 
     if args.direction_opt == 't2s':
         output_mode = 1
@@ -908,7 +917,7 @@ def cli_get_criteria(args):
     criteria = (
         input_source, output_mode, input_locale,
         output_locale, use_target_phrase, quote_type,
-        text_direction, punc_dict, punc_regex)
+        text_direction, update_punctuation, punc_dict, punc_regex)
 
     return criteria
 
@@ -974,8 +983,10 @@ def print_conversion_info(args, file_set, version, configuration_filename):
         print('No Change')
     elif args.text_dir_opt == 'h':
         print(_('Horizontal'))
+        print(_('Update punctuation to match text directon: ') + str(args.punctuation_opt))
     else:
         print (_('Vertical'))
+        print(_('Update punctuation to match text directon: ') + str(args.punctuation_opt))
 
     if args.outdir_opt == None and args.append_suffix_opt == '':
         print(_('Output directory: Overwrite existing file'))
@@ -988,7 +999,7 @@ def print_conversion_info(args, file_set, version, configuration_filename):
     for filename in file_set:
         print('   ' + filename)
     print('')
-    
+
 def main(argv, plugin_version, usage=None):
     import argparse
     import glob
@@ -1021,6 +1032,9 @@ def main(argv, plugin_version, usage=None):
     parser.add_argument('-td', '--text-direction', dest='text_dir_opt', default='no_change',
                         help=_('Set to the ebook origin locale if known (Default: no_change)'), choices=text_directions)
 
+    parser.add_argument('-up', '--update_punctuation', dest='punctuation_opt', help=_('Update punctuation to match direction change (Default: False)'),
+                        action='store_true')
+
     parser.add_argument('-v', '--verbose', dest='verbose_opt', help=_('Print out details as the conversion progresses (Default: False)'),
                         action='store_true')
     parser.add_argument('-t', '--test', dest='test_opt', help=_('Run conversion operations without saving results (Default: False)'),
@@ -1039,13 +1053,13 @@ def main(argv, plugin_version, usage=None):
                         help=_('One or more epub and/or azw3 ebook filepaths - UNIX style wildcards accepted'))
 
     args = parser.parse_args(argv)
-    
+
     #Pull out the list of ebooks
     file_set = set()
 
     if args.outdir_opt == None:
         output_dir = None
-                               
+
     else:
         dir_list = glob.glob(args.outdir_opt)
         if len(dir_list) == 0:
@@ -1064,7 +1078,7 @@ def main(argv, plugin_version, usage=None):
                 if not args.quiet_opt:
                     print(_('Output directory not a directory'))
                 return(1)
-        
+
     for filespec in args.ebookFiles:
         #Get a list of files
         file_list = glob.glob(filespec)
@@ -1172,7 +1186,7 @@ def main(argv, plugin_version, usage=None):
     return(0)
 
 
-    
+
 if __name__ == "__main__":
     main(sys.argv[1:])
 
