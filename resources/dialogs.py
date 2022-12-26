@@ -1,7 +1,4 @@
 
-from __future__ import (unicode_literals, division, absolute_import,
-                        print_function)
-
 """
 ----------------------------
 NOTE:
@@ -17,13 +14,14 @@ __docformat__ = 'restructuredtext en'
 import os
 
 try:
-    from PyQt5.Qt import (Qt, QVBoxLayout, QApplication,
-                      QDialogButtonBox, QHBoxLayout,
-                      QProgressDialog, QListWidget, QTimer, QDialog)
+    from qt.core import (Qt, QVBoxLayout, QApplication,
+                         QDialogButtonBox, QHBoxLayout,
+                         QProgressDialog, QListWidget, QTimer, QDialog)
 except ImportError:
-    from PyQt4.Qt import (Qt, QVBoxLayout, QApplication,
-                      QDialogButtonBox, QHBoxLayout,
-                      QProgressDialog, QListWidget, QTimer, QDialog)
+    from PyQt5.Qt import (Qt, QVBoxLayout, QApplication,
+                          QDialogButtonBox, QHBoxLayout,
+                         QProgressDialog, QListWidget, QTimer, QDialog)
+
 
 from calibre.gui2 import error_dialog, choose_files, open_url
 from calibre.utils.config import config_dir
