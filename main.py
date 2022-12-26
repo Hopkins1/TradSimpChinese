@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import (unicode_literals, division, absolute_import,
-                        print_function)
 
 __license__ = 'GPL 3'
 __copyright__ = '2022, Hopkins'
@@ -11,9 +9,10 @@ from html.parser import HTMLParser
 from html.entities import name2codepoint
 
 try:
-    from PyQt5.Qt import Qt, QAction, QDialog, QApplication, QCursor
-except:
-    from PyQt4.Qt import Qt, QAction, QDialog, QApplication, QCursor
+    from qt.core import (Qt, QAction, QDialog, QApplication, QCursor)
+except ImportError:
+    from PyQt5.Qt import (Qt, QAction, QDialog, QApplication, QCursor)
+
 
 from calibre.gui2.tweak_book.plugin import Tool
 from calibre.gui2.tweak_book import editor_name
@@ -66,7 +65,7 @@ QUOTATION_TYPE = 5         # 0=No change, 1=Western, 2=East Asian
 OUTPUT_ORIENTATION = 6     # 0=No change, 1=Horizontal, 2=Vertical
 UPDATE_PUNCTUATION = 7     # True/False
 PUNC_DICT = 8              # punctuation swapping dictionary based on settings, may be None
-PUNC_REGEX = 9             # precompiled regex axpression to swap punctuation, may be None
+PUNC_REGEX = 9             # precompiled regex expression to swap punctuation, may be None
 
 
 #<!--PI_SELTEXT_START-->
@@ -125,7 +124,7 @@ class HTML_TextProcessor(HTMLParser):
     def setTextConvertor(self, textConvertor):
         self.textConverter = textConvertor
 
-    def setLanguage(self, language):
+    def setLanguageAttribute(self, language):
         self.language = language
 
     def replace_quotations(self, data):
@@ -142,8 +141,17 @@ class HTML_TextProcessor(HTMLParser):
         return htmlstr_corrected
 
 
+    # multiple_replace copied from ActiveState http://code.activestate.com/recipes/81330-single-pass-multiple-replace/
+    # Copyright 2001 Xavier Defrang
+    # PSF (Python Software Foundation) license (GPL Compatible)
+    # https://docs.python.org/3/license.html
+    def multiple_replace(self, replace_regex, replace_dict, text):
+      # For each match, look-up corresponding value in dictionary
+      return replace_regex.sub(lambda mo: replace_dict[mo.string[mo.start():mo.end()]], text)
+
     def processText(self, data, criteria):
 ##        print("processText:", data)
+##        print('processText Criteria: ', criteria)
 
         self.criteria = criteria
         self.result.clear()
@@ -167,7 +175,7 @@ class HTML_TextProcessor(HTMLParser):
 ##            print("     attr:", attr)
 
         # change language code inside of tags
-        if (self.criteria[INPUT_SOURCE] == 0) and (self.criteria[CONVERSION_TYPE] != 0) and (self.language != None):
+        if self.converting and (self.criteria[CONVERSION_TYPE] != 0) and (self.language != None):
             self.result.append(self.zh_re.sub(self.language, self.get_starttag_text()))
         else:
             self.result.append(self.get_starttag_text())
@@ -189,29 +197,37 @@ class HTML_TextProcessor(HTMLParser):
         else:
             self.result.append(self.get_starttag_text())
 
-    def handle_data(self, data):
+    def handle_data(self, text):
+##        print("Data     :", text)
 
-##        print("Data     :", data)
-
-        text = data
-        if self.converting:
-            # Convert quotation marks
-            if (self.criteria[QUOTATION_TYPE] != 0):
-                text = self.replace_quotations(data)
-
-            # Convert punctuation to vertical or horizontal using provided regular expression
-            # self.criteria[PUNC_REGEX] is only set if vertical or horizontal change selected
-            if self.criteria[PUNC_REGEX] != None:
-                text = multiple_replace(self.criteria[PUNC_REGEX], self.criteria[PUNC_DICT], text)
-
-        # Convert text to traditional or simplified if needed
-##          print('handle_data CONVERSION_TYPE criteria = ', self.criteria[CONVERSION_TYPE])
-        if self.criteria[CONVERSION_TYPE] != 0 and self.converting:
-##              print('handle_data calling self.textConverter.convert(text)')
-            self.result.append(self.textConverter.convert(text))
-        else:
-##              print('handle_data NOT calling self.textConverter.convert(text)')
+        if text.isspace():
+##            print("handle_data is only whitespace")
             self.result.append(text)
+        else:
+            if self.converting:
+                if (self.criteria[OUTPUT_ORIENTATION] == 0) or (self.criteria[OUTPUT_ORIENTATION] == 2):
+                    # Convert quotation marks
+                    if (self.criteria[QUOTATION_TYPE] != 0):
+                        text = self.replace_quotations(text)
+
+                # Convert punctuation to vertical or horizontal using provided regular expression
+                # self.criteria[PUNC_REGEX] is only set if vertical or horizontal change selected
+                if self.criteria[PUNC_REGEX] != None:
+                    text = self.multiple_replace(self.criteria[PUNC_REGEX], self.criteria[PUNC_DICT], text)
+
+                if (self.criteria[OUTPUT_ORIENTATION] == 1):
+                    # Convert quotation marks
+                    if (self.criteria[QUOTATION_TYPE] != 0):
+                        text = self.replace_quotations(text)
+
+            # Convert text to traditional or simplified if needed
+##            print('handle_data CONVERSION_TYPE criteria = ', self.criteria[CONVERSION_TYPE])
+            if self.criteria[CONVERSION_TYPE] != 0 and self.converting:
+##                print('handle_data calling self.textConverter.convert(text)')
+                self.result.append(self.textConverter.convert(text))
+            else:
+##                print('handle_data NOT calling self.textConverter.convert(text)')
+                self.result.append(text)
 
 
     def handle_comment(self, data):
@@ -287,8 +303,9 @@ class TradSimpChinese(Tool):
         # Pop up a window to ask if the user wants to convert the text
         ac.triggered.connect(self.dispatcher)
 
-        # Initalize defaults for preferences
-        prefsPrep()
+        # Initialize defaults for preferences
+        self.prefs = getPrefs()
+        self.prefsPrep()
         return ac
 
     def dispatcher(self):
@@ -303,14 +320,20 @@ class TradSimpChinese(Tool):
         from calibre_plugins.chinese_text.dialogs import ConversionDialog
         from calibre_plugins.chinese_text.resources.dialogs import ResultsDialog
 
-        self.prefs = getPrefs()
         if self.dlg == None:
             self.dlg = ConversionDialog(self.gui, self.prefs, _h2v_master_dict, PUNC_OMITS)
         if self.dlg.exec_():
-            criteria = getCriteria()
+            criteria = self.getCriteria()
             # Ensure any in progress editing the user is doing is present in the container
             self.boss.commit_all_editors_to_container()
             self.boss.add_savepoint(_('Before: Text Conversion'))
+
+            # Set the conversion output language
+            self.language = get_language_code(criteria)
+            if self.language != "None":
+                self.parser.setLanguageAttribute('lang=\"' + self.language + '\"')
+            else:
+                self.parser.setLanguageAttribute(None)
 
             try:
                 conversion = get_configuration(criteria)
@@ -322,7 +345,6 @@ class TradSimpChinese(Tool):
                     QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
                     QApplication.processEvents()
                     self.converter.set_conversion(conversion)
-##                    self.converter.clear_counts()
                     self.process_files(criteria)
                     QApplication.restoreOverrideCursor()
             except Exception:
@@ -350,10 +372,7 @@ class TradSimpChinese(Tool):
 
     def process_files(self, criteria):
         container = self.current_container  # The book being edited as a container object
-        lang = get_language_code(criteria)
-        if lang != "None":
-            self.language = 'lang=\"' + lang + '\"'
-            self.parser.setLanguage(self.language)
+
         if criteria[INPUT_SOURCE] == 1 or criteria[INPUT_SOURCE] == 2:
             # Only convert the selected file
             name = editor_name(self.gui.central.current_editor)
@@ -372,7 +391,7 @@ class TradSimpChinese(Tool):
             # Cover the entire book
             # Set metadata and Table of Contents (TOC) if language changed
             if criteria[CONVERSION_TYPE] != 0:
-                self.filesChanged = set_metadata_toc(container, lang, criteria, self.changed_files, self.converter)
+                self.filesChanged = set_metadata_toc(container, self.language, criteria, self.changed_files, self.converter)
 
             # Check for orientation change
             direction_changed = False
@@ -388,31 +407,78 @@ class TradSimpChinese(Tool):
             self.filesChanged = self.filesChanged or (not d.clean) or direction_changed
             self.changed_files.extend(d.changed_files)
 
-def prefsPrep():
-    # Default settings for dialog widgets
+    def prefsPrep(self):
+        # Default settings for dialog widgets
 
-    from calibre.utils.config import JSONConfig
-    plugin_prefs = JSONConfig('plugins/{0}_ChineseConversion_settings'.format(PLUGIN_SAFE_NAME))
+        # If this is a new installation
+        if self.prefs == {}:
+            self.prefs['input_source'] = 0
+            self.prefs['conversion_type'] = 0
+            self.prefs['input_locale'] = 0
+            self.prefs['output_locale'] = 0
+            self.prefs['use_target_phrases'] = True
+            self.prefs['quotation_type'] = 0
+            self.prefs['output_orientation'] = 0
+            self.prefs['update_punctuation'] = False
+            self.prefs['punc_omits'] = PUNC_OMITS
+            # Write the preferences out to the JSON file
+            self.prefs.commit()
 
-##    print('prefsPrep preferences')
 
-    plugin_prefs.defaults['input_source'] = 0           # 0=whole book, 1=current file, 2=selected text
+        # Initialize the defaults. No need to commit since these are not
+        # stored in the JSON file
+        self.prefs.defaults['input_source'] = 0           # 0=whole book, 1=current file, 2=selected text
 
-    plugin_prefs.defaults['conversion_type'] = 0        # 0=No change, 1=trad->simp, 2=simp->trad, 3=trad->trad
-    plugin_prefs.defaults['input_locale'] = 0           # 0=Mainland, 1=Hong Kong, 2=Taiwan
-    plugin_prefs.defaults['output_locale'] = 0          # 0=Mainland, 1=Hong Kong, 2=Taiwan
-    plugin_prefs.defaults['use_target_phrases'] = True  # True/False
+        self.prefs.defaults['conversion_type'] = 0        # 0=No change, 1=trad->simp, 2=simp->trad, 3=trad->trad
+        self.prefs.defaults['input_locale'] = 0           # 0=Mainland, 1=Hong Kong, 2=Taiwan
+        self.prefs.defaults['output_locale'] = 0          # 0=Mainland, 1=Hong Kong, 2=Taiwan
+        self.prefs.defaults['use_target_phrases'] = True  # True/False
 
-    plugin_prefs.defaults['quotation_type'] = 0         # 0=No change, 1=Western, 2=East Asian
+        self.prefs.defaults['quotation_type'] = 0         # 0=No change, 1=Western, 2=East Asian
 
-    plugin_prefs.defaults['output_orientation'] = 0     # 0=No change, 1=Horizontal, 2=Vertical
+        self.prefs.defaults['output_orientation'] = 0     # 0=No change, 1=Horizontal, 2=Vertical
 
-    plugin_prefs.defaults['update_punctuation'] = False #  True/False
+        self.prefs.defaults['update_punctuation'] = False #  True/False
 
-    plugin_prefs.defaults['punc_omits'] = PUNC_OMITS    # Horizontal mark string in horizontal/vertical
-                                                        # dictionary pairs that is NOT to be used. No
-                                                        # space between marks in string.
+        self.prefs.defaults['punc_omits'] = PUNC_OMITS    # Horizontal mark string in horizontal/vertical
+                                                            # dictionary pairs that is NOT to be used. No
+                                                            # space between marks in string.
 
+    def getCriteria(self):
+        # Get the criteria from the current saved preferences if not passed in
+        # The preference set is updated every time the user dialog is closed
+
+        punc_dict = {}
+        punc_regex = None
+
+        if self.prefs['update_punctuation'] and (len(self.prefs['punc_omits']) != len(_h2v_master_dict.keys())):
+            # create a dictionary without the keys contained in self.prefs['punc_omits']
+            h2v = {}
+            omit_set = set(self.prefs['punc_omits'])
+            for key in _h2v_master_dict.keys():
+                if not key in omit_set:
+                    h2v[key] = _h2v_master_dict[key]
+
+            # horizontal full width characters to their vertical presentation forms regex
+            h2v_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, h2v.keys())))
+
+            # vertical full width characters to their horizontal presentation forms regex
+            v2h = {v: k for k, v in h2v.items()}
+            v2h_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, v2h.keys())))
+
+            if self.prefs['output_orientation'] == 1:
+                punc_dict = v2h
+                punc_regex = v2h_dict_regex
+            elif self.prefs['output_orientation'] == 2:
+                punc_dict = h2v
+                punc_regex = h2v_dict_regex
+
+        criteria = (
+            self.prefs['input_source'], self.prefs['conversion_type'], self.prefs['input_locale'],
+            self.prefs['output_locale'], self.prefs['use_target_phrases'], self.prefs['quotation_type'],
+            self.prefs['output_orientation'], self.prefs['update_punctuation'], punc_dict, punc_regex)
+
+        return criteria
 
 
 def getPrefs():
@@ -438,53 +504,6 @@ def getPrefs():
 ##                                                  # space between marks in string.
     return plugin_prefs
 
-def getCriteria():
-##    print('getCriteria() entered')
-    # Get the criteria from the current saved preferences
-    # The preference set is updated every time the user dialog is closed
-    prefs = getPrefs()
-
-    # copy the master conversion dictionary
-    h2v = _h2v_master_dict
-
-    # remove unwanted conversions; these are stored in prefs
-    for x in prefs['punc_settings']:
-        del h2v[x]
-    h2v_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, h2v.keys())))
-
-    # Vertical full width characters to their Horizontal presentation forms lookup
-    v2h = {v: k for k, v in h2v.items()}
-    v2h_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, v2h.keys())))
-
-    punc_dict = {}
-    punc_regex = None
-
-    if prefs['update_punctuation']:
-        if prefs['output_orientation'] == 1:
-            punc_dict = v2h
-            punc_regex = v2h_dict_regex
-        elif prefs['output_orientation'] == 2:
-            punc_dict = h2v
-            punc_regex = h2v_dict_regex
-
-    criteria = (
-        prefs['input_source'], prefs['conversion_type'], prefs['input_locale'],
-        prefs['output_locale'], prefs['use_target_phrases'], prefs['quotation_type'],
-        prefs['output_orientation'], prefs['update_punctuation'], punc_dict, punc_regex)
-
-    return criteria
-
-
-# multiple_replace copied from ActiveState http://code.activestate.com/recipes/81330-single-pass-multiple-replace/
-# Copyright 2001 Xavier Defrang
-# PSF (Python Software Foundation) license (GPL Compatible)
-# https://docs.python.org/3/license.html
-def multiple_replace(replace_regex, replace_dict, text):
-#  # Create a regular expression  from the dictionary keys
-#  regex = re.compile("(%s)" % "|".join(map(re.escape, orientation_dict.keys())))
-
-  # For each match, look-up corresponding value in dictionary
-  return replace_regex.sub(lambda mo: replace_dict[mo.string[mo.start():mo.end()]], text)
 
 def get_language_code(criteria):
     """
@@ -494,7 +513,6 @@ def get_language_code(criteria):
     conversion_mode = criteria[CONVERSION_TYPE]
     input_type = criteria[INPUT_LOCALE]
     output_type = criteria[OUTPUT_LOCALE]
-    use_target_phrasing = criteria[USE_TARGET_PHRASES]
 
     # Return 'None' if Japan locale is used so that no laguage changes are made
     language_code = 'None'
@@ -523,11 +541,24 @@ def get_language_code(criteria):
             else:
                 #mainland trad -> mainland trad does nothing
                 language_code = 'None'
+        elif input_type == 1:
+            if output_type == 0:
+                language_code = 'zh-CN'
+            else:
+                #only TW trad -> mainland
+                language_code = 'None'
+        elif input_type == 2:
+            if output_type == 0:
+                language_code = 'zh-CN'
+            else:
+                #only HK trad -> mainland
+                language_code = 'None'
         else:
             #hk -> tw and tw -> hk not currently set up
             #hk -> hk and tw -> tw does nothing
             language_code = 'None'
     return language_code
+
 
 def set_metadata_toc(container, language, criteria, changed_files, converter):
     # Returns True if either the metadata or TOC files changed
@@ -760,10 +791,12 @@ def get_configuration(criteria):
     elif conversion_mode == 1:
         #trad to simp
         if input_type == 0:         # mainland
-            if output_type == 3:    # Japan
-                configuration = 't2jp' # traditional Chinese hanzi to simplified modern Japanese kanji
-            else: # mainland
+            if output_type == 0:    # mainland
                 configuration = 't2s'
+            elif output_type == 3:     # Japan
+                configuration = 't2jp' # traditional Chinese hanzi to simplified modern Japanese kanji
+            else: # HK or TW
+                configuration = 'unsupported_conversion'
         elif input_type == 1:       # Hong Kong
             if output_type != 0:    # not mainland
                 configuration = 'unsupported_conversion'
@@ -777,49 +810,64 @@ def get_configuration(criteria):
                 if use_target_phrasing:
                     configuration += 'p'
         else:
+            # Japan is simplified kanji only
             configuration = 'unsupported_conversion'
 
     elif conversion_mode == 2:
         #simp to trad
-        configuration = 's'
-        if output_type == 0:        # mainland
-            if input_type == 3:    # Japan
+        if input_type == 0:             #mainland
+            if output_type == 0:        # mainland
+                configuration = 's2t'
+            elif output_type == 1:      # Hong Kong
+                configuration = 's2hk'
+            elif input_type == 2:       # Taiwan
+                configuration = 's2tw'
+                if use_target_phrasing:
+                    configuration += 'p'
+            else:
+                # Japan
+                configuration = 'unsupported_conversion'
+        elif input_type == 3:          # Japan
+            if output_type == 0:       # mainland
                 configuration = 'jp2t' #Simplified modern Japanese kanji to traditional Chinese hanzi
-            else: # mainland
-                configuration += '2t'
-        elif output_type == 1:      # Hong Kong
-            configuration += '2hk'
-        elif input_type == 2:       # Taiwan
-            configuration += '2tw'
-            if use_target_phrasing:
-                configuration += 'p'
-        else:                       # Japan
+            else:
+                # HK or TW
+                configuration = 'unsupported_conversion'
+
+        else:
+            # HK or TW are traditional only
             configuration = 'unsupported_conversion'
 
     else:
         #trad to trad
-        if input_type == 0:             # mailand
-            if output_type == 1:        # Hong Kong
+        if input_type == 0:             # mainland
+            if output_type == 0:        # mainland
+                configuration = 'no_conversion' # does nothing
+            elif output_type == 1:        # Hong Kong
                 configuration = 't2hk'
             elif output_type == 2:      # Taiwan
                 configuration = 't2tw'
             else:                       # mainland
-                #mainland trad -> mainland trad does nothing
+                # Japan is invalid
                 configuration = 'unsupported_conversion'
         elif input_type == 1:           # Hong Kong
             if output_type == 0:
                 configuration = 'hk2t'
+            elif output_type == 1:        # Hong Kong
+                configuration = 'no_conversion' # does nothing
             else:
-                #HK trad -> HK or TW trad does nothing, Japan is invalid
+                #HK trad -> TW trad not supported, Japan is invalid
                 configuration = 'unsupported_conversion'
         elif input_type == 2:           # Taiwan
             if output_type == 0:
                 configuration = 'tw2t'
+            elif output_type == 2:        # Taiwan
+                configuration = 'no_conversion' # does nothing
             else:
-                #TW trad -> HK or TW trad does nothing, Japan is invalid
+                #TW trad -> HK trad not supported, Japan is invalid
                 configuration = 'unsupported_conversion'
         else:
-            #jp is simplified kanji only
+            #JP is simplified kanji only
             configuration = 'unsupported_conversion'
 
     return configuration
@@ -861,12 +909,12 @@ def cli_get_criteria(args):
     punc_dict = {}
     punc_regex = None
 
-    if args.punctuation_opt and (args.text_dir_opt != 'none'):
+    if args.punctuation_opt and (args.text_dir_opt != 'none') and (len(prefs['punc_omits']) != len(_h2v_master_dict.keys())):
         # copy the master conversion dictionary
         h2v = _h2v_master_dict
 
         # remove unwanted conversions; these are stored in prefs
-        for x in prefs['punc_settings']:
+        for x in prefs['punc_omits']:
             del h2v[x]
         h2v_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, h2v.keys())))
 
@@ -925,7 +973,9 @@ def cli_process_files(criteria, container, converter, parser):
     lang = get_language_code(criteria)
     if lang != "None":
         language = 'lang=\"' + lang + '\"'
-        parser.setLanguage(language)
+        parser.setLanguageAttribute(language)
+    else:
+        parser.setLanguageAttribute(None)
 
     # Cover the entire book
     # Set metadata and Table of Contents (TOC)
@@ -967,7 +1017,7 @@ def print_conversion_info(args, file_set, version, configuration_filename):
         print(_('Traditional->Traditional'))
     if args.direction_opt != 'none':
         print(_('Input locale: ') + args.orig_opt.upper())
-        print(_('Outpututput locale: ') + args.dest_opt.upper())
+        print(_('Output locale: ') + args.dest_opt.upper())
         print(_('Use destination phrases: ') + str(args.phrase_opt))
 
     print(_('Quotation Mark Style: '), end="")
@@ -983,10 +1033,10 @@ def print_conversion_info(args, file_set, version, configuration_filename):
         print('No Change')
     elif args.text_dir_opt == 'h':
         print(_('Horizontal'))
-        print(_('Update punctuation to match text directon: ') + str(args.punctuation_opt))
+        print(_('Update punctuation to match text direction: ') + str(args.punctuation_opt))
     else:
         print (_('Vertical'))
-        print(_('Update punctuation to match text directon: ') + str(args.punctuation_opt))
+        print(_('Update punctuation to match text direction: ') + str(args.punctuation_opt))
 
     if args.outdir_opt == None and args.append_suffix_opt == '':
         print(_('Output directory: Overwrite existing file'))
@@ -1006,7 +1056,7 @@ def main(argv, plugin_version, usage=None):
 
     converter = OpenCC(get_resource_file)
 
-    # Create the HTML parser and pass in the converer
+    # Create the HTML parser and pass in the converter
     html_parser = HTML_TextProcessor(converter)
 
     criteria = None
@@ -1016,8 +1066,9 @@ def main(argv, plugin_version, usage=None):
     quotation_types = ['w', 'e', 'no_change']
     text_directions = ['h', 'v', 'no_change']
 
-    parser = argparse.ArgumentParser(description=_('Convert Chinese characters between traditional/simplified types and/or change text style.\nPlugin Version: ') +
-                                     str(plugin_version[0]) + '.' + str(plugin_version[1]) + '.' + str(plugin_version[2]))
+    parser = argparse.ArgumentParser(description=_('Convert Chinese characters between traditional/simplified types and/or change text style.\n'
+                                                   'Generally run as: calibre-debug --run-plugin \"Chinese Text Conversion\" -- [options] ebook-filepath\n'
+                                                   'Plugin Version: ') + str(plugin_version[0]) + '.' + str(plugin_version[1]) + '.' + str(plugin_version[2]))
     parser.add_argument('-il', '--input-locale', dest='orig_opt', default='cn',
                         help=_('Set to the ebook origin locale if known (Default: cn)'), choices=list_of_locales)
     parser.add_argument('-ol', '--output-locale', dest='dest_opt', default='cn',
@@ -1039,7 +1090,7 @@ def main(argv, plugin_version, usage=None):
                         action='store_true')
     parser.add_argument('-t', '--test', dest='test_opt', help=_('Run conversion operations without saving results (Default: False)'),
                         action='store_true')
-    parser.add_argument('-q', '--quiet', dest='quiet_opt', help=_('Do not print anything, ignore warnings - this option overides the -s option (Default: False)'),
+    parser.add_argument('-q', '--quiet', dest='quiet_opt', help=_('Do not print anything, ignore warnings - this option overrides the -s option (Default: False)'),
                         action='store_true')
     parser.add_argument('-od', '--output-dir', dest='outdir_opt',
                         help=_('Set to the ebook output file directory (Default: overwrite existing ebook file)'))
@@ -1126,7 +1177,7 @@ def main(argv, plugin_version, usage=None):
 
     if (args.outdir_opt == None) and args.append_suffix_opt == '':
         if not args.force_opt:
-            response = str(raw_input(_('No output directory specified, original ebook file will be overwritten. Is this OK? [N] or Y: '))).lower().strip()
+            response = str(input(_('No output directory specified, original ebook file will be overwritten. Is this OK? [N] or Y: '))).lower().strip()
             if (len(response)) > 0 and (response[0] == 'y'):
                 pass
             else:

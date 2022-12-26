@@ -1,5 +1,3 @@
-from __future__ import (unicode_literals, division, absolute_import,
-                        print_function)
 
 __license__ = 'GPL 3'
 __docformat__ = 'restructuredtext en'

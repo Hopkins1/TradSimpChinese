@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import (unicode_literals)
+
 ##########################################################
 # Author: Yichen Huang (Eugene)
 # GitHub: https://github.com/yichen0831/opencc-python
@@ -7,8 +7,8 @@ from __future__ import (unicode_literals)
 ##########################################################
 
 ##########################################################
-# Revised by: Hopkins 
-# June, 2016
+# Revised by: Hopkins
+# December, 2022
 # Apache License Version 2.0, January 2004
 # - Use a tree-like structure hold the result during conversion
 # - Always choose the longest matching string from left to right in dictionary
@@ -18,8 +18,6 @@ from __future__ import (unicode_literals)
 # - If a dictionary is configured as part of a group, only match once per group
 #   in order of the listed dictionaries
 # - Cache the results of reading a dictionary in self.dict_cache
-# - Use "from __future__ import" to allow support for both Python 2.7
-#   and Python >3.2
 ##########################################################
 
 import io
@@ -61,11 +59,6 @@ class OpenCC:
         if self.conversion is not None:
             self._init_dict()
 
-##    def clear_counts (self):
-##        _counts_dict.clear()
-##
-##    def get_counts (self):
-##        return _counts_dict
 
     def convert(self, string):
         """
@@ -217,7 +210,6 @@ class StringTree:
     """
     def __init__(self, string):
         self.string = string
-        self.old_string = string
         self.left = None
         self.right = None
         self.string_len = len(string)
@@ -255,7 +247,6 @@ class StringTree:
                             self.right.convert_tree(test_dict)
                         # Save the dictionary value in this tree
                         value = test_dict[1][self.string[i:i+test_len]]
-                        self.old_string = self.string[i:i+test_len]
                         if len(value.split(' ')) > 1:
                             # multiple mapping, use the first one for now
                             value = value.split(' ')[0]
