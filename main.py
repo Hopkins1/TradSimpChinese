@@ -441,8 +441,8 @@ class TradSimpChinese(Tool):
         self.prefs.defaults['update_punctuation'] = False #  True/False
 
         self.prefs.defaults['punc_omits'] = PUNC_OMITS    # Horizontal mark string in horizontal/vertical
-                                                            # dictionary pairs that is NOT to be used. No
-                                                            # space between marks in string.
+                                                          # dictionary pairs that is NOT to be used. No
+                                                          # space between marks in string.
 
     def getCriteria(self):
         # Get the criteria from the current saved preferences if not passed in
@@ -902,19 +902,20 @@ def cli_get_criteria(args):
     text_direction = 0          # No change
     update_punctuation = False  # No change
 
-    # Get some of the criteria from the current saved preferences
+    # Get some of the criteria from the current saved preferences or default value
     # The preference set is updated every time the user dialog is closed
     prefs = getPrefs()
 
     punc_dict = {}
     punc_regex = None
+    omits = prefs.get('punc_omits', PUNC_OMITS)
 
-    if args.punctuation_opt and (args.text_dir_opt != 'none') and (len(prefs['punc_omits']) != len(_h2v_master_dict.keys())):
+    if args.punctuation_opt and (args.text_dir_opt != 'none') and (len(omits) != len(_h2v_master_dict.keys())):
         # copy the master conversion dictionary
         h2v = _h2v_master_dict
 
         # remove unwanted conversions; these are stored in prefs
-        for x in prefs['punc_omits']:
+        for x in omits:
             del h2v[x]
         h2v_dict_regex = re.compile("(%s)" % "|".join(map(re.escape, h2v.keys())))
 
