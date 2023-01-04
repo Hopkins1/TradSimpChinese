@@ -820,7 +820,7 @@ def get_configuration(criteria):
                 configuration = 's2t'
             elif output_type == 1:      # Hong Kong
                 configuration = 's2hk'
-            elif input_type == 2:       # Taiwan
+            elif output_type == 2:       # Taiwan
                 configuration = 's2tw'
                 if use_target_phrasing:
                     configuration += 'p'
@@ -833,7 +833,6 @@ def get_configuration(criteria):
             else:
                 # HK or TW
                 configuration = 'unsupported_conversion'
-
         else:
             # HK or TW are traditional only
             configuration = 'unsupported_conversion'
