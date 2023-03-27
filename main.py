@@ -255,7 +255,7 @@ class HTML_TextProcessor(HTMLParser):
 ##        print("Named ent:", c)
 ##
     def handle_charref(self, name):
-        self.result.append("&#" + data + ";")
+        self.result.append("&#" + name + ";")
 ##        if name.startswith('x'):
 ##            c = chr(int(name[1:], 16))
 ##        else:
