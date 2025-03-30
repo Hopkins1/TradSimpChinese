@@ -117,7 +117,7 @@ class HTML_TextProcessor(HTMLParser):
           self.simp_to_trad_re = re.compile('|'.join(map(re.escape, self.simp_to_trad_quotes)))
 
           # Create regular expression to look for common transliterated Chinese lang attributes
-          self.zh_non_re = re.compile(r'lang=\"zh-Latn|lang=\"zh-Cyrl|lang=\"zh-Mong', re.IGNORECASE)
+          self.zh_non_re = re.compile(r'lang=\"zh-Latn|lang=\"zh-Cyrl|lang=\"zh-Bopo|lang=\"zh-Mong', re.IGNORECASE)
 
           # Create regular expression to modify lang attribute
           self.zh_re = re.compile(r'lang=\"zh-[\-\w+]+\"|lang=\"zh\"', re.IGNORECASE)
