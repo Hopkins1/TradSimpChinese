@@ -34,6 +34,10 @@ useful when dealing with Japanese ebooks.
 
 4) The plugin also uses python code from DiapDealer's Editing Toolbag (https://github.com/dougmassay/toolbag-calibre-plugin). Licenese: GPL3
 
+![dialog](img/PluginDialogPicture.png)
+![traditional to simplified](img/PluginConversionChinese.png)
+![horizontal to vertical](img/PluginConversionJapanese2.png)
+
 
 Support Link
 =====
@@ -43,7 +47,7 @@ Support Link
 
 Building
 ========
-No building necessary other than wrapping the entire directory in a zip file.
+No building necessary other than wrapping the entire directory in a zip file. The "img" directory is not needed.
 
 
 Contributing / Modifying

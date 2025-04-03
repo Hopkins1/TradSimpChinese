@@ -7,7 +7,7 @@ from calibre.customize import EditBookToolPlugin
 PLUGIN_NAME = "Chinese Text Conversion"
 PLUGIN_SAFE_NAME = PLUGIN_NAME.strip().lower().replace(' ', '_')
 PLUGIN_DESCRIPTION = 'A plugin to convert traditional and simplified Chinese text'
-PLUGIN_VERSION_TUPLE = (3, 0, 1)
+PLUGIN_VERSION_TUPLE = (3, 1, 0)
 PLUGIN_VERSION = '.'.join([str(x) for x in PLUGIN_VERSION_TUPLE])
 PLUGIN_AUTHORS = 'Hopkins'
 

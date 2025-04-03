@@ -116,8 +116,11 @@ class HTML_TextProcessor(HTMLParser):
           self.simp_to_trad_quotes = {'“':'「', '”':'」', '‘':'『', '’':'』'}
           self.simp_to_trad_re = re.compile('|'.join(map(re.escape, self.simp_to_trad_quotes)))
 
+          # Create regular expression to look for common transliterated Chinese lang attributes
+          self.zh_non_re = re.compile(r'lang=\"zh-Latn|lang=\"zh-Cyrl|lang=\"zh-Bopo|lang=\"zh-Mong', re.IGNORECASE)
+
           # Create regular expression to modify lang attribute
-          self.zh_re = re.compile(r'lang=\"zh-\w+\"|lang=\"zh\"', re.IGNORECASE)
+          self.zh_re = re.compile(r'lang=\"zh-[\-\w+]+\"|lang=\"zh\"', re.IGNORECASE)
 
 
     # Use this if one wants to reset the converter
@@ -174,8 +177,8 @@ class HTML_TextProcessor(HTMLParser):
 ##        for attr in attrs:
 ##            print("     attr:", attr)
 
-        # change language code inside of tags
-        if self.converting and (self.criteria[CONVERSION_TYPE] != 0) and (self.language != None):
+        # change language code inside of tags if Chinese script
+        if self.converting and (self.criteria[CONVERSION_TYPE] != 0) and (self.language != None) and (self.zh_non_re.search(self.get_starttag_text()) == None):
             self.result.append(self.zh_re.sub(self.language, self.get_starttag_text()))
         else:
             self.result.append(self.get_starttag_text())
@@ -191,8 +194,8 @@ class HTML_TextProcessor(HTMLParser):
 ##        for attr in attrs:
 ##            print("     attr:", attr)
 
-        # change language code inside of tags
-        if (self.criteria[INPUT_SOURCE] == 0) and (self.criteria[CONVERSION_TYPE] != 0) and (self.language != None):
+        # change language code inside of tags if Chinese script
+        if (self.criteria[INPUT_SOURCE] == 0) and (self.criteria[CONVERSION_TYPE] != 0) and (self.language != None) and (self.zh_non_re.search(self.get_starttag_text()) == None):
             self.result.append(self.zh_re.sub(self.language, self.get_starttag_text()))
         else:
             self.result.append(self.get_starttag_text())
@@ -514,42 +517,42 @@ def get_language_code(criteria):
     input_type = criteria[INPUT_LOCALE]
     output_type = criteria[OUTPUT_LOCALE]
 
-    # Return 'None' if Japan locale is used so that no laguage changes are made
+    # Return 'None' if Japan locale is used so that no language changes are made
     language_code = 'None'
 
     if conversion_mode == 1:
         #trad to simp
         if output_type == 0:
-            language_code = 'zh-CN'
+            language_code = 'zh-Hans-CN'
 
     elif conversion_mode == 2:
         #simp to trad, (we don't support Macau yet zh-MO)
         if output_type == 0:
-            language_code = 'zh-CN'
+            language_code = 'zh-Hant-CN'
         elif output_type == 1:
-            language_code = 'zh-HK'
+            language_code = 'zh-Hant-HK'
         else:
-            language_code = 'zh-TW'
+            language_code = 'zh-Hant-TW'
 
     elif conversion_mode == 3:
         #trad to trad, (we don't support Macau yet zh-MO)
         if input_type == 0:
             if output_type == 1:
-                language_code = 'zh-HK'
+                language_code = 'zh-Hant-HK'
             elif output_type == 2:
-                language_code = 'zh-TW'
+                language_code = 'zh-Hant-TW'
             else:
                 #mainland trad -> mainland trad does nothing
                 language_code = 'None'
         elif input_type == 1:
             if output_type == 0:
-                language_code = 'zh-CN'
+                language_code = 'zh-Hant-CN'
             else:
                 #only TW trad -> mainland
                 language_code = 'None'
         elif input_type == 2:
             if output_type == 0:
-                language_code = 'zh-CN'
+                language_code = 'zh-Hant-CN'
             else:
                 #only HK trad -> mainland
                 language_code = 'None'
