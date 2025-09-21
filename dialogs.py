@@ -178,8 +178,8 @@ class ConversionDialog(Dialog):
         source_group=QButtonGroup(self)
         self.book_source_button = QRadioButton(_('Entire eBook'))
         self.file_source_button = QRadioButton(_('Current File'))
-        self.seltext_source_button = QRadioButton(_('Selected Text in Current File'))
-        self.seltext_source_button.setToolTip(_('“Selected Text” is bracketed by <!--PI_SELTEXT_START--> and <!--PI_SELTEXT_END-->'))
+        self.seltext_source_button = QRadioButton(_('Tagged Text in Current File'))
+        self.seltext_source_button.setToolTip(_('“Tagged Text” is bracketed by <!--PI_SELTEXT_START--> and <!--PI_SELTEXT_END-->'))
         source_group.addButton(self.book_source_button)
         source_group.addButton(self.file_source_button)
         source_group.addButton(self.seltext_source_button)
@@ -191,6 +191,8 @@ class ConversionDialog(Dialog):
             source_group_box_layout.addWidget(self.book_source_button)
             source_group_box_layout.addWidget(self.file_source_button)
             source_group_box_layout.addWidget(self.seltext_source_button)
+
+        self.book_source_button.toggled.connect(self.on_button_toggled)
 
         layout.addSpacing(10)
         self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -368,6 +370,17 @@ class ConversionDialog(Dialog):
         # open the punctuation dialog
         self.punctuation_dialog.exec_()
 
+
+    def on_button_toggled(self, checked):
+        # The whole file radio button changed state
+        if not checked:
+            # set direction to no change
+            # disable text direction changes
+            self.text_dir_combo.setCurrentIndex(0)
+            self.text_dir_combo.setEnabled(False)
+        else:
+            # enable text direction changes
+            self.text_dir_combo.setEnabled(True)
 
     def savePrefs(self):
         # save the current settings into the preferences
