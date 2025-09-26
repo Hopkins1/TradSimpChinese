@@ -172,16 +172,28 @@ class HTML_TextProcessor(HTMLParser):
         return "".join(self.result)
 
     def handle_starttag(self, tag, attrs):
-##        print("Literal start tag:", self.get_starttag_text())
-##        print("Start tag:", tag)
-##        for attr in attrs:
-##            print("     attr:", attr)
+        ##print("Literal start tag:", self.get_starttag_text())
+        ##print("Start tag:", tag)
+        ##for attr in attrs:
+        ##    print("     attr:", attr)
 
-        # change language code inside of tags if Chinese script
-        if self.converting and (self.criteria[CONVERSION_TYPE] != 0) and (self.language != None) and (self.zh_non_re.search(self.get_starttag_text()) == None):
-            self.result.append(self.zh_re.sub(self.language, self.get_starttag_text()))
+        tag_text = self.get_starttag_text()
+
+        # if direction is being changed, verify "calibre-chinese_text" is a class name listed in the body tag
+        if (tag == "body") and (self.criteria[OUTPUT_ORIENTATION] != 0):
+            # check if it contains "calibre-chinese_text"
+               if "calibre-chinese_text" not in tag_text:
+                   # if class="" exists, append to items in quotes
+                   if "class=" in tag_text:
+                       tag_text = re.sub(r"class=(['\"])(.+)\1", r"class=\1\2 calibre-chinese_text\1", tag_text)
+                   else:
+                       tag_text = re.sub(r"<body", r"<body class=\"calibre-chinese_text\"", tag_text)
+
+        # if Chinese script is being changed, change language code inside of tags
+        if self.converting and (self.criteria[CONVERSION_TYPE] != 0) and (self.language != None) and (self.zh_non_re.search(tag_text) == None):
+            self.result.append(self.zh_re.sub(self.language, tag_text))
         else:
-            self.result.append(self.get_starttag_text())
+            self.result.append(tag_text)
 
     def handle_endtag(self, tag):
         self.result.append("</" + tag + ">")
@@ -730,7 +742,7 @@ def set_flow_direction(container, criteria, changed_files, converter):
             rules = (rule for rule in sheet if rule.type == rule.STYLE_RULE)
             for rule in rules:
                 for selector in rule.selectorList:
-                    if selector.selectorText == u'.calibre':
+                    if selector.selectorText == u'body.calibre-chinese_text':
                         addedCSSRules = True
                         if add_flow_direction_properties(rule, orientation, break_rule):
                             fileChanged = True
@@ -738,23 +750,7 @@ def set_flow_direction(container, criteria, changed_files, converter):
                             container.dirty(name)
                         break
 
-    if not addedCSSRules:
-        for name, mt in container.mime_map.items():
-            if mt in OEB_STYLES:
-                # Get the sheet as a python css_parser CSSStyleSheet object
-                sheet = container.parsed(name)
-                # Look through all the rules and find any with a 'body' selector
-                rules = (rule for rule in sheet if rule.type == rule.STYLE_RULE)
-                for rule in rules:
-                    for selector in rule.selectorList:
-                        if selector.selectorText == u'body':
-                            addedCSSRules = True
-                            if add_flow_direction_properties(rule, orientation, break_rule):
-                                fileChanged = True
-                                changed_files.append(name)
-                                container.dirty(name)
-
-    # If no 'body' selector rule is found in any css file, add one to every css file
+    # If no 'body.calibre-chinese_text' selector rule is found in any css file, add one to every css file
     if not addedCSSRules:
         for name, mt in container.mime_map.items():
             if mt in OEB_STYLES:
@@ -763,7 +759,7 @@ def set_flow_direction(container, criteria, changed_files, converter):
                 # Create a style rule for body.
                 styleEntry = css.CSSStyleDeclaration()
                 styleEntry['writing-mode'] = orientation
-                styleRule = css.CSSStyleRule(selectorText=u'body', style=styleEntry)
+                styleRule = css.CSSStyleRule(selectorText=u'body.calibre-chinese_text', style=styleEntry)
                 sheet.add(styleRule)
                 styleRule.style['-epub-writing-mode'] = orientation
                 styleRule.style['-webkit-writing-mode'] = orientation
