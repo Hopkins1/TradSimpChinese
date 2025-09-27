@@ -187,7 +187,7 @@ class HTML_TextProcessor(HTMLParser):
                    if "class=" in tag_text:
                        tag_text = re.sub(r"class=(['\"])(.+)\1", r"class=\1\2 calibre-chinese_text\1", tag_text)
                    else:
-                       tag_text = re.sub(r"<body", r"<body class=\"calibre-chinese_text\"", tag_text)
+                       tag_text = re.sub(r"<body", r'<body class="calibre-chinese_text"', tag_text)
 
         # if Chinese script is being changed, change language code inside of tags
         if self.converting and (self.criteria[CONVERSION_TYPE] != 0) and (self.language != None) and (self.zh_non_re.search(tag_text) == None):
