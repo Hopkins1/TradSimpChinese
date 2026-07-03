@@ -774,7 +774,7 @@ def get_configuration(criteria):
     """
     :param criteria: the description of the desired conversion
     :return a tuple of the conversion direction and the output format:
-      1) 'hk2s', 'hk2t', 'jp2t', 's2hk', 's2t', 's2tw', 's2twp', 't2hk', 't2hkp', 't2jp', 't2s', 't2tw', 'tw2s', 'tw2sp', 'tw2t', 'no_conversion', or 'unsupported_conversion'
+      1) 'hk2s', 'hk2sp', 'hk2t', 'jp2t', 's2hk', 's2hkp', 's2t', 's2tw', 's2twp', 't2hk', 't2jp', 't2s', 't2tw', 'tw2s', 'tw2sp', 'tw2t', 'no_conversion', or 'unsupported_conversion'
     """
     conversion_mode = criteria[CONVERSION_TYPE]
     input_type = criteria[INPUT_LOCALE]
@@ -801,6 +801,8 @@ def get_configuration(criteria):
                 configuration = 'unsupported_conversion'
             else:
                 configuration = 'hk2s'
+                if use_target_phrasing:
+                    configuration += 'p'
         elif input_type == 2:       # Taiwan
             if output_type != 0:    # not mainland
                 configuration = 'unsupported_conversion'
@@ -819,6 +821,8 @@ def get_configuration(criteria):
                 configuration = 's2t'
             elif output_type == 1:      # Hong Kong
                 configuration = 's2hk'
+                if use_target_phrasing:
+                    configuration += 'p'
             elif output_type == 2:       # Taiwan
                 configuration = 's2tw'
                 if use_target_phrasing:
