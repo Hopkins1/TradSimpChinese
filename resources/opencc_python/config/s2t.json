@@ -1,22 +1,18 @@
 {
-  "name": "Simplified Chinese to Traditional Chinese",
+  "name": "Simplified Chinese to Traditional Chinese (OpenCC Standard)",
   "segmentation": {
     "type": "mmseg",
-    "dict": {
-      "type": "txt",
-      "file": "STPhrases.txt"
-    }
+    "dict": { "type": "txt", "file": "STPhrases.txt" }
   },
-  "conversion_chain": [{
-    "dict": {
-      "type": "group",
-      "dicts": [{
-        "type": "txt",
-        "file": "STPhrases.txt"
-      }, {
-        "type": "txt",
-        "file": "STCharacters.txt"
-      }]
+  "conversion_chain": [
+    {
+      "dict": {
+        "type": "group",
+        "dicts": [
+          { "type": "txt", "file": "STPhrases.txt" },
+          { "type": "txt", "file": "STCharacters.txt" }
+        ]
+      }
     }
-  }]
+  ]
 }
