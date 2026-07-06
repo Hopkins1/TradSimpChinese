@@ -1,3 +1,10 @@
+# Open Chinese Convert (OpenCC) Dictionary
+# File: TWVariants.txt
+# Format: key	value(s) (values separated by spaces)
+# License: Apache-2.0 (see LICENSE)
+# Source: https://github.com/ByVoid/OpenCC
+# Used in configs: s2tw.json, s2twp.json, t2tw.json
+
 僞	偽
 啓	啟
 喫	吃
@@ -5,7 +12,6 @@
 嬀	媯
 峯	峰
 幺	么
-擡	抬
 棱	稜
 檐	簷
 污	汙

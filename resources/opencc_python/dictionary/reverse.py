@@ -17,9 +17,8 @@ import io
 DICT_DIRECTORY = '.'
 
 REV_INPUTS = [
-    'JPVariants',
+    'JPShinjitaiCharacters',
     'TWVariants',
-    'TWPhrases',
     'HKVariants'
 ]
 
@@ -41,6 +40,9 @@ def reverse(rev_inputs=REV_INPUTS):
         with io.open(input_file, 'r', encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
+                #Skip blank lines and comments
+                if (len(line) == 0) or (line[0] == '#'):
+                    continue
                 split = line.split('\t')
                 if len(split) < 2:
                     continue

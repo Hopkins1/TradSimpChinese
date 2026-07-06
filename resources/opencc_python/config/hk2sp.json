@@ -1,5 +1,5 @@
 {
-  "name": "Traditional Chinese (Taiwan Standard) to Simplified Chinese (Mainland China Phrases)",
+  "name": "Traditional Chinese (Hong Kong variant) to Simplified Chinese (with phrases)",
   "segmentation": {
     "type": "mmseg",
     "dict": { "type": "txt", "file": "TSPhrases.txt" }
@@ -9,9 +9,9 @@
       "dict": {
         "type": "group",
         "dicts": [
-          { "type": "txt", "file": "TWPhrasesRev.txt" },
-          { "type": "txt", "file": "TWVariantsRevPhrases.txt" },
-          { "type": "txt", "file": "TWVariantsRev.txt" }
+          { "type": "txt", "file": "HKPhrasesRev.txt" },
+          { "type": "txt", "file": "HKVariantsRevPhrases.txt" },
+          { "type": "txt", "file": "HKVariantsRev.txt" }
         ]
       }
     },

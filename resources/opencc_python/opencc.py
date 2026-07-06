@@ -40,7 +40,8 @@ class OpenCC:
          The second parameter is a file name associated with the directory.
          It returns bytes from the selected file.
         :param conversion: the conversion of usage, options are
-         'hk2s', 's2hk', 's2t', 's2tw', 's2twp', 't2hk', 't2s', 't2tw', 'tw2s', and 'tw2sp'
+         'hk2s', 'hk2sp', 'hk2t', 'jp2t', 's2hk', 's2hkp', 's2t', 's2tw', 's2twp',
+         't2hk', 't2jp', 't2s', 't2tw', 'tw2s', and 'tw2sp', 'tw2t'
          check the json file names in config directory
         :return: None
         """
@@ -155,6 +156,9 @@ class OpenCC:
                         converted_data = bytes.decode("utf-8")
                         converted_data_list = converted_data.splitlines()
                         for line in converted_data_list:
+                            #Skip blank lines and comments
+                            if (len(line) == 0) or (line[0] == '#'):
+                                continue
                             key, value = line.strip().split('\t')
                             map_dict[key] = value
                             if len(key) > max_len:
@@ -190,7 +194,7 @@ class OpenCC:
         """
         set conversion
         :param conversion: the conversion of usage, options are
-         'hk2s', 's2hk', 's2t', 's2tw', 's2twp', 't2hk', 't2s', 't2tw', 'tw2s', and 'tw2sp'
+         'hk2s', 'hk2sp', 'hk2t', 'jp2t', 's2hk', 's2hkp', 's2t', 's2tw', 's2twp', 't2hk', 't2jp', 't2s', 't2tw', 'tw2s', 'tw2sp', 'tw2t', 'no_conversion', or 'unsupported_conversion'
          check the json file names in config directory
         :return: None
         """
@@ -219,7 +223,7 @@ class StringTree:
         """
         Compare smaller and smaller sub-strings going from left to
         right against test_dict. If an entry is found, place the remaining
-        string portion on the left and right into sub-trees and recurively
+        string portion on the left and right into sub-trees and recursively
         convert each.
         :param test_dict: a tuple of the max key length and dict currently being
                           applied against the string
