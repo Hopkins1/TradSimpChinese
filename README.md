@@ -14,7 +14,7 @@ useful when dealing with Japanese ebooks.
 
 3) Convert regional words and idioms used in the source material to those words and idioms used in the destination material
 
-4) Convert text direction
+4) Convert horizontal text to vertical and convert back to horizontal
 
 5) Convert individual sections or the entire book
 
@@ -48,6 +48,14 @@ Support Link
 Building
 ========
 No building necessary other than wrapping the entire directory in a zip file. The "img" directory is not needed.
+
+Installing
+========
+Install via the Calibre main screen: Preferences|Advanced|Plugins|Load plugin from file
+
+The plugin is available in the Calibre Editor
+
+One can add, remove, or reposition the shortcut button (labeled '文') via the Editor main screen: Edit|Preferences|Toolbars|Book wide tools from third party plugins
 
 
 Contributing / Modifying

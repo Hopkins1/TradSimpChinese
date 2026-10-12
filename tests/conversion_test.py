@@ -73,10 +73,11 @@ class TestOpenCC(unittest.TestCase):
         words = '香菸（英語：Cigarette），爲菸草製品的一種。鼠標是一種很常見及常用的電腦輸入設備。'
         self.assertEqual(self.openCC.convert(words), '香菸（英語：Cigarette），為菸草製品的一種。鼠標是一種很常見及常用的電腦輸入設備。')
 
+    # Added test for normalization of CJK Compatibility Ideographs 車 -> 車
     def test_tw2t(self):
         self.openCC.set_conversion('tw2t')
-        words = '香菸（英語：Cigarette），為菸草製品的一種。鼠標是一種很常見及常用的電腦輸入設備。'
-        self.assertEqual(self.openCC.convert(words), '香菸（英語：Cigarette），爲菸草製品的一種。鼠標是一種很常見及常用的電腦輸入設備。')
+        words = '香菸（英語：Cigarette），為菸草製品的一種。鼠標是一種很常見及常用的電腦輸入設備。 車'
+        self.assertEqual(self.openCC.convert(words), '香菸（英語：Cigarette），爲菸草製品的一種。鼠標是一種很常見及常用的電腦輸入設備。 車')
 
     # Github issue 29 added  專著/专著 and 抬頭/抬头
     def test_tw2s(self):

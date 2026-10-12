@@ -52,6 +52,7 @@ class OpenCC:
         self._dict_chain = list()
         self._dict_chain_data = list()
         self.dict_cache = dict()
+        self.compat_table = str.maketrans("", "")
         self.resource_getter = resource_getter
         # List of sentence separators from OpenCC PhraseExtract.cpp. None of these separators are allowed as
         # part of a dictionary entry
@@ -100,7 +101,9 @@ class OpenCC:
                               the first match in the dict group should be used
         :return: converted string
         """
-        tree = StringTree(string)
+        # Create a tree object after normalizing all CJK Compatibility Ideographs
+        # to their UnicodeData decomposition targets via translate
+        tree = StringTree(string.translate(self.compat_table))
         for c_dict in dictionary:
             if isinstance(c_dict, tuple):
                 tree.convert_tree(c_dict)
@@ -139,7 +142,25 @@ class OpenCC:
 
         self._dict_chain_data = []
         self._add_dictionaries(self._dict_chain, self._dict_chain_data)
+        self._create_compat_table()
         self._dict_init_done = True
+
+    def _create_compat_table(self):
+        compat_dict = {}
+        bytes = self.resource_getter(DICT_FILE, "CJK_Compatibility_Ideographs.txt")
+        if bytes is not None:
+            converted_data = bytes.decode("utf-8")
+            converted_data_list = converted_data.splitlines()
+            for line in converted_data_list:
+                #Skip blank lines and comments
+                if (len(line) == 0) or (line[0] == '#'):
+                    continue
+                key, value = line.strip().split('\t')
+                compat_dict[key] = value
+        else:
+            #Raise exception
+            raise IOError('unable to open opencc compatibility dictionary')
+        self.compat_table = str.maketrans(compat_dict)
 
     def _add_dictionaries(self, chain_list, chain_data):
         for item in chain_list:
